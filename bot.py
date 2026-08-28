@@ -28,6 +28,10 @@ from finanzas import (
 )
 
 
+# =============================
+# CONFIGURACIÓN
+# =============================
+
 load_dotenv()
 
 TOKEN = os.getenv(
@@ -47,6 +51,10 @@ CATEGORIAS = [
 ]
 
 
+# =============================
+# TECLADOS
+# =============================
+
 def crear_teclado_categorias():
 
     teclado = []
@@ -56,9 +64,7 @@ def crear_teclado_categorias():
 
         boton = InlineKeyboardButton(
             categoria,
-            callback_data=(
-                f"categoria:{categoria}"
-            )
+            callback_data=f"categoria:{categoria}"
         )
 
         fila.append(
@@ -82,6 +88,30 @@ def crear_teclado_categorias():
         teclado
     )
 
+
+def crear_teclado_confirmacion():
+
+    teclado = [
+        [
+            InlineKeyboardButton(
+                "Confirmar ✅",
+                callback_data="confirmar_gasto"
+            ),
+            InlineKeyboardButton(
+                "Cancelar ❌",
+                callback_data="cancelar_gasto"
+            )
+        ]
+    ]
+
+    return InlineKeyboardMarkup(
+        teclado
+    )
+
+
+# =============================
+# MENSAJES DE TEXTO
+# =============================
 
 async def responder_mensaje(
     update: Update,
@@ -118,9 +148,9 @@ async def responder_mensaje(
             "intencion"
         ]
 
-        # =========================
+        # =============================
         # REGISTRAR
-        # =========================
+        # =============================
 
         if intencion == "registrar":
 
@@ -211,9 +241,9 @@ async def responder_mensaje(
 
             return
 
-        # =========================
+        # =============================
         # CONSULTAR
-        # =========================
+        # =============================
 
         mes = datos[
             "mes"
@@ -231,11 +261,16 @@ async def responder_mensaje(
             "cuenta"
         ]
 
+        status = datos[
+            "status"
+        ]
+
         if (
             mes is None
             and anio is None
             and subcategoria is None
             and cuenta is None
+            and status is None
         ):
 
             await update.message.reply_text(
@@ -249,52 +284,115 @@ async def responder_mensaje(
             mes=mes,
             anio=anio,
             subcategoria=subcategoria,
-            cuenta=cuenta
+            cuenta=cuenta,
+            status=status
         )
 
-        filtros = []
+        if total == 0:
 
-        if subcategoria is not None:
+            partes = []
 
-            filtros.append(
-                subcategoria
-            )
+            if subcategoria is not None:
+                partes.append(
+                    f"de {subcategoria}"
+                )
 
-        if cuenta is not None:
+            if cuenta is not None:
+                partes.append(
+                    f"con {cuenta}"
+                )
 
-            filtros.append(
-                cuenta
-            )
+            if status is not None:
+                partes.append(
+                    status.lower()
+                )
 
-        if mes is not None:
+            if mes is not None:
+                partes.append(
+                    "este mes"
+                    if (
+                        mes == datetime.now().month
+                        and anio == datetime.now().year
+                    )
+                    else f"en {mes}/{anio}"
+                )
 
-            filtros.append(
-                f"mes {mes}"
-            )
-
-        if anio is not None:
-
-            filtros.append(
-                str(anio)
-            )
-
-        if filtros:
-
-            detalle = " · ".join(
-                filtros
+            detalle = " ".join(
+                partes
             )
 
             respuesta = (
-                f"Total ({detalle}): "
-                f"${total:,.2f}"
+                f"No tienes gastos {detalle}."
             )
 
         else:
 
-            respuesta = (
-                f"Total: "
-                f"${total:,.2f}"
-            )
+            partes = []
+
+            if status is not None:
+
+                if status == "Pendiente":
+                    inicio = (
+                        f"Tienes ${total:,.2f} pendiente"
+                    )
+
+                elif status == "Pagado":
+                    inicio = (
+                        f"Tienes ${total:,.2f} pagado"
+                    )
+
+                else:
+                    inicio = (
+                        f"Total: ${total:,.2f}"
+                    )
+
+            else:
+
+                inicio = (
+                    f"Total: ${total:,.2f}"
+                )
+
+            if subcategoria is not None:
+                partes.append(
+                    f"en {subcategoria}"
+                )
+
+            if cuenta is not None:
+                partes.append(
+                    f"con {cuenta}"
+                )
+
+            if mes is not None:
+
+                if (
+                    mes == datetime.now().month
+                    and anio == datetime.now().year
+                ):
+
+                    partes.append(
+                        "este mes"
+                    )
+
+                else:
+
+                    partes.append(
+                        f"en {mes}/{anio}"
+                    )
+
+            if partes:
+
+                respuesta = (
+                    inicio
+                    + " "
+                    + " ".join(partes)
+                    + "."
+                )
+
+            else:
+
+                respuesta = (
+                    inicio + "."
+                )
 
         await update.message.reply_text(
             respuesta
@@ -312,6 +410,10 @@ async def responder_mensaje(
         )
 
 
+# =============================
+# SELECCIÓN DE CATEGORÍA
+# =============================
+
 async def manejar_categoria(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
@@ -322,8 +424,6 @@ async def manejar_categoria(
     if query is None:
         return
 
-    # Telegram espera que respondamos
-    # la callback del botón.
     await query.answer()
 
     datos = context.user_data.get(
@@ -343,6 +443,67 @@ async def manejar_categoria(
         "",
         1
     )
+
+    datos["categoria"] = categoria
+
+    context.user_data[
+        "gasto_pendiente"
+    ] = datos
+
+    plazos = datos.get(
+        "plazos",
+        1
+    )
+
+    tipo_pago = (
+        "Meses"
+        if plazos > 1
+        else "Contado"
+    )
+
+    await query.edit_message_text(
+        (
+            "Confirma el movimiento:\n\n"
+            f"Descripción: {datos['concepto']}\n"
+            f"Monto: ${datos['monto']:,.2f}\n"
+            f"Cuenta: {datos['cuenta']}\n"
+            f"Categoría: {categoria}\n"
+            f"Tipo de pago: {tipo_pago}\n"
+            f"Plazos: {plazos}"
+        ),
+        reply_markup=(
+            crear_teclado_confirmacion()
+        )
+    )
+
+
+# =============================
+# CONFIRMAR GASTO
+# =============================
+
+async def confirmar_gasto(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
+
+    query = update.callback_query
+
+    if query is None:
+        return
+
+    await query.answer()
+
+    datos = context.user_data.get(
+        "gasto_pendiente"
+    )
+
+    if datos is None:
+
+        await query.edit_message_text(
+            "No hay ningún gasto pendiente."
+        )
+
+        return
 
     ahora = datetime.now()
 
@@ -370,7 +531,7 @@ async def manejar_categoria(
         datos["cuenta"],
         "",
         datos["concepto"],
-        categoria,
+        datos["categoria"],
         tipo_pago,
         plazos,
         "Pendiente",
@@ -390,18 +551,12 @@ async def manejar_categoria(
         await query.edit_message_text(
             (
                 "Movimiento registrado ✅\n\n"
-                f"Descripción: "
-                f"{datos['concepto']}\n"
-                f"Monto: "
-                f"${datos['monto']:,.2f}\n"
-                f"Cuenta: "
-                f"{datos['cuenta']}\n"
-                f"Categoría: "
-                f"{categoria}\n"
-                f"Tipo de pago: "
-                f"{tipo_pago}\n"
-                f"Plazos: "
-                f"{plazos}\n"
+                f"Descripción: {datos['concepto']}\n"
+                f"Monto: ${datos['monto']:,.2f}\n"
+                f"Cuenta: {datos['cuenta']}\n"
+                f"Categoría: {datos['categoria']}\n"
+                f"Tipo de pago: {tipo_pago}\n"
+                f"Plazos: {plazos}\n"
                 f"Status: Pendiente"
             )
         )
@@ -418,6 +573,44 @@ async def manejar_categoria(
         )
 
 
+# =============================
+# CANCELAR GASTO
+# =============================
+
+async def cancelar_gasto(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
+
+    query = update.callback_query
+
+    if query is None:
+        return
+
+    await query.answer()
+
+    datos = context.user_data.pop(
+        "gasto_pendiente",
+        None
+    )
+
+    if datos is None:
+
+        await query.edit_message_text(
+            "No había ningún movimiento pendiente."
+        )
+
+        return
+
+    await query.edit_message_text(
+        "Movimiento cancelado ❌"
+    )
+
+
+# =============================
+# ERRORES
+# =============================
+
 async def manejar_error(
     update: object,
     context: ContextTypes.DEFAULT_TYPE
@@ -428,6 +621,10 @@ async def manejar_error(
         f"{context.error}"
     )
 
+
+# =============================
+# MAIN
+# =============================
 
 def main():
 
@@ -443,6 +640,7 @@ def main():
         .build()
     )
 
+    # Mensajes normales
     app.add_handler(
         MessageHandler(
             filters.TEXT
@@ -451,10 +649,27 @@ def main():
         )
     )
 
+    # Selección de categoría
     app.add_handler(
         CallbackQueryHandler(
             manejar_categoria,
             pattern=r"^categoria:"
+        )
+    )
+
+    # Confirmar registro
+    app.add_handler(
+        CallbackQueryHandler(
+            confirmar_gasto,
+            pattern=r"^confirmar_gasto$"
+        )
+    )
+
+    # Cancelar registro
+    app.add_handler(
+        CallbackQueryHandler(
+            cancelar_gasto,
+            pattern=r"^cancelar_gasto$"
         )
     )
 

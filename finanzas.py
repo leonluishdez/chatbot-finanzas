@@ -437,6 +437,28 @@ def detectar_concepto(
 
     return ""
 
+def detectar_status(mensaje):
+
+    mensaje = normalizar_texto(
+        mensaje
+    )
+
+    if (
+        "pendiente" in mensaje
+        or "pendientes" in mensaje
+    ):
+        return "Pendiente"
+
+    if (
+        "pagado" in mensaje
+        or "pagados" in mensaje
+        or "pagada" in mensaje
+        or "pagadas" in mensaje
+    ):
+        return "Pagado"
+
+    return None
+
 
 def interpretar_mensaje(
     mensaje,
@@ -455,6 +477,10 @@ def interpretar_mensaje(
     cuenta = detectar_cuenta(
         mensaje,
         movimientos
+    )
+
+    status = detectar_status(
+    mensaje
     )
 
     # Valores por defecto.
@@ -527,6 +553,7 @@ def interpretar_mensaje(
         "monto": monto,
         "concepto": concepto,
         "plazos": plazos,
+        "status": status,
     }
 
 
@@ -535,7 +562,8 @@ def calcular_total(
     mes=None,
     anio=None,
     subcategoria=None,
-    cuenta=None
+    cuenta=None,
+    status=None
 ):
 
     total = 0.0
@@ -626,6 +654,26 @@ def calcular_total(
                 valor_cuenta
                 != normalizar_texto(
                     cuenta
+                )
+            ):
+                continue
+        # =========================
+        # FILTRO STATUS
+        # =========================
+
+        if status is not None:
+
+            valor_status = normalizar_texto(
+                movimiento.get(
+                    "Status",
+                    ""
+                )
+            )
+
+            if (
+                valor_status
+                != normalizar_texto(
+                    status
                 )
             ):
                 continue
