@@ -55,6 +55,50 @@ CATEGORIAS = [
 # TECLADOS
 # =============================
 
+def crear_teclado_cuentas(movimientos):
+
+    cuentas = set()
+
+    for movimiento in movimientos:
+
+        cuenta = str(
+            movimiento.get(
+                "Cuenta",
+                ""
+            )
+        ).strip()
+
+        if cuenta:
+            cuentas.add(cuenta)
+
+    cuentas = sorted(
+        cuentas
+    )
+
+    teclado = []
+    fila = []
+
+    for cuenta in cuentas:
+
+        boton = InlineKeyboardButton(
+            cuenta,
+            callback_data=f"cuenta:{cuenta}"
+        )
+
+        fila.append(boton)
+
+        if len(fila) == 2:
+
+            teclado.append(fila)
+            fila = []
+
+    if fila:
+        teclado.append(fila)
+
+    return InlineKeyboardMarkup(
+        teclado
+    )
+
 def crear_teclado_categorias():
 
     teclado = []
@@ -179,14 +223,6 @@ async def responder_mensaje(
 
                 return
 
-            if cuenta is None:
-
-                await update.message.reply_text(
-                    "No pude identificar la cuenta."
-                )
-
-                return
-
             if not concepto:
 
                 await update.message.reply_text(
@@ -203,6 +239,22 @@ async def responder_mensaje(
                 "concepto": concepto,
                 "plazos": plazos,
             }
+
+            if cuenta is None:
+
+                await update.message.reply_text(
+                    (
+                        "No pude identificar la cuenta.\n\n"
+                        "Selecciona cuál usaste:"
+                    ),
+                    reply_markup=(
+                        crear_teclado_cuentas(
+                            movimientos
+                        )
+                    )
+                )
+
+                return
 
             tipo_pago = (
                 "Meses"
@@ -626,6 +678,52 @@ async def manejar_error(
 # MAIN
 # =============================
 
+async def manejar_cuenta(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
+
+    query = update.callback_query
+
+    if query is None:
+        return
+
+    await query.answer()
+
+    datos = context.user_data.get(
+        "gasto_pendiente"
+    )
+
+    if datos is None:
+
+        await query.edit_message_text(
+            "El gasto pendiente ya no existe."
+        )
+
+        return
+
+    cuenta = query.data.replace(
+        "cuenta:",
+        "",
+        1
+    )
+
+    datos["cuenta"] = cuenta
+
+    context.user_data[
+        "gasto_pendiente"
+    ] = datos
+
+    await query.edit_message_text(
+        (
+            f"Cuenta: {cuenta}\n\n"
+            "Ahora selecciona la categoría:"
+        ),
+        reply_markup=(
+            crear_teclado_categorias()
+        )
+    )
+
 def main():
 
     if not TOKEN:
@@ -648,6 +746,13 @@ def main():
             responder_mensaje
         )
     )
+
+    app.add_handler(
+    CallbackQueryHandler(
+        manejar_cuenta,
+        pattern=r"^cuenta:"
+    )
+)
 
     # Selección de categoría
     app.add_handler(

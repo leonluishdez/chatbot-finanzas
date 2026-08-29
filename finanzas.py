@@ -140,10 +140,45 @@ def detectar_intencion(mensaje):
         mensaje
     )
 
-    for palabra in PALABRAS_REGISTRO:
+    # Frases claramente de consulta
+    palabras_consulta = [
+        "cuanto",
+        "cuantos",
+        "total",
+        "consulta",
+        "consultar"
+    ]
+
+    for palabra in palabras_consulta:
 
         if palabra in mensaje_normalizado:
+            return "consultar"
 
+    # Verbos explícitos de registro
+    palabras_registro = [
+        "registra",
+        "registrar",
+        "registe",
+        "regista",
+        "anota",
+        "agrega",
+        "añade"
+    ]
+
+    for palabra in palabras_registro:
+
+        if palabra in mensaje_normalizado:
+            return "registrar"
+
+    # Lenguaje natural:
+    # "gasté 200 en tacos"
+    if "gaste" in mensaje_normalizado:
+
+        monto = detectar_monto(
+            mensaje
+        )
+
+        if monto is not None:
             return "registrar"
 
     return "consultar"
