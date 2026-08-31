@@ -1,7 +1,12 @@
 import re
 import unicodedata
+
 from datetime import datetime
 
+
+# =============================
+# MESES
+# =============================
 
 MESES = {
     "enero": 1,
@@ -19,6 +24,10 @@ MESES = {
 }
 
 
+# =============================
+# ALIAS DE SUBCATEGORÍAS
+# =============================
+
 ALIAS_SUBCATEGORIAS = {
     "uber": "Uber/Didi",
     "didi": "Uber/Didi",
@@ -27,6 +36,10 @@ ALIAS_SUBCATEGORIAS = {
     "plan de retiro": "Plan de Retiro",
 }
 
+
+# =============================
+# ALIAS DE CUENTAS
+# =============================
 
 ALIAS_CUENTAS = {
     "bbva platinum": "BBVA Platinum",
@@ -39,9 +52,14 @@ ALIAS_CUENTAS = {
 }
 
 
+# =============================
+# PALABRAS DE REGISTRO
+# =============================
+
 PALABRAS_REGISTRO = [
     "registra",
     "registrar",
+    "registe",
     "regista",
     "anota",
     "agrega",
@@ -49,9 +67,15 @@ PALABRAS_REGISTRO = [
 ]
 
 
+# =============================
+# PALABRAS A IGNORAR
+# AL DETECTAR DESCRIPCIÓN
+# =============================
+
 PALABRAS_IGNORAR_CONCEPTO = {
     "registra",
     "registrar",
+    "registe",
     "regista",
     "anota",
     "agrega",
@@ -59,6 +83,7 @@ PALABRAS_IGNORAR_CONCEPTO = {
     "un",
     "una",
     "gasto",
+    "ingreso",
     "de",
     "con",
     "en",
@@ -70,6 +95,10 @@ PALABRAS_IGNORAR_CONCEPTO = {
     "msi",
 }
 
+
+# =============================
+# NORMALIZACIÓN
+# =============================
 
 def normalizar_texto(texto):
 
@@ -89,9 +118,16 @@ def normalizar_texto(texto):
     return texto
 
 
+# =============================
+# CONVERSIÓN DE MONTO
+# =============================
+
 def convertir_monto(monto):
 
-    if isinstance(monto, (int, float)):
+    if isinstance(
+        monto,
+        (int, float)
+    ):
         return float(monto)
 
     monto_limpio = (
@@ -101,15 +137,26 @@ def convertir_monto(monto):
         .strip()
     )
 
-    return float(monto_limpio)
+    return float(
+        monto_limpio
+    )
 
+
+# =============================
+# CONVERSIÓN DE FECHA
+# =============================
 
 def convertir_fecha(fecha):
 
-    if isinstance(fecha, datetime):
+    if isinstance(
+        fecha,
+        datetime
+    ):
         return fecha
 
-    fecha_texto = str(fecha).strip()
+    fecha_texto = str(
+        fecha
+    ).strip()
 
     formatos = [
         "%d/%m/%y",
@@ -126,7 +173,6 @@ def convertir_fecha(fecha):
             )
 
         except ValueError:
-
             continue
 
     raise ValueError(
@@ -134,19 +180,26 @@ def convertir_fecha(fecha):
     )
 
 
+# =============================
+# DETECTAR INTENCIÓN
+# =============================
+
 def detectar_intencion(mensaje):
 
     mensaje_normalizado = normalizar_texto(
         mensaje
     )
 
-    # Frases claramente de consulta
+    # =============================
+    # CONSULTAS
+    # =============================
+
     palabras_consulta = [
         "cuanto",
         "cuantos",
         "total",
         "consulta",
-        "consultar"
+        "consultar",
     ]
 
     for palabra in palabras_consulta:
@@ -154,24 +207,22 @@ def detectar_intencion(mensaje):
         if palabra in mensaje_normalizado:
             return "consultar"
 
-    # Verbos explícitos de registro
-    palabras_registro = [
-        "registra",
-        "registrar",
-        "registe",
-        "regista",
-        "anota",
-        "agrega",
-        "añade"
-    ]
+    # =============================
+    # REGISTRO EXPLÍCITO
+    # =============================
 
-    for palabra in palabras_registro:
+    for palabra in PALABRAS_REGISTRO:
 
-        if palabra in mensaje_normalizado:
+        if normalizar_texto(
+            palabra
+        ) in mensaje_normalizado:
+
             return "registrar"
 
-    # Lenguaje natural:
-    # "gasté 200 en tacos"
+    # =============================
+    # REGISTRO NATURAL DE GASTOS
+    # =============================
+
     if "gaste" in mensaje_normalizado:
 
         monto = detectar_monto(
@@ -181,20 +232,82 @@ def detectar_intencion(mensaje):
         if monto is not None:
             return "registrar"
 
+    # =============================
+    # REGISTRO NATURAL DE INGRESOS
+    # =============================
+
+    palabras_ingreso_registro = [
+        "recibi",
+        "cobre",
+        "depositaron",
+        "abonaron",
+        "ingrese",
+    ]
+
+    for palabra in palabras_ingreso_registro:
+
+        if palabra in mensaje_normalizado:
+
+            monto = detectar_monto(
+                mensaje
+            )
+
+            if monto is not None:
+                return "registrar"
+
     return "consultar"
 
+# =============================
+# DETECTAR TIPO DE MOVIMIENTO
+# =============================
+
+def detectar_tipo_movimiento(
+    mensaje
+):
+
+    mensaje_normalizado = normalizar_texto(
+        mensaje
+    )
+
+    palabras_ingreso = [
+        "ingreso",
+        "ingresos",
+        "recibi",
+        "recibiste",
+        "cobre",
+        "cobrado",
+        "depositaron",
+        "abonaron",
+        "ingrese",
+        "ingresado"
+    ]
+
+    for palabra in palabras_ingreso:
+
+        if palabra in mensaje_normalizado:
+            return "Ingreso"
+
+    return "Gasto"
+
+
+# =============================
+# DETECTAR MONTO
+# =============================
 
 def detectar_monto(mensaje):
 
     texto = (
-        normalizar_texto(mensaje)
+        normalizar_texto(
+            mensaje
+        )
         .replace("$", "")
         .replace(",", "")
     )
 
-    # Quitamos primero expresiones como:
-    # 6 msi / 12 meses
-    # para no confundir el plazo con el monto.
+    # Quitamos expresiones
+    # como 6 msi / 12 meses
+    # para no confundir plazo
+    # con monto.
     texto = re.sub(
         r"\b\d+\s*(?:meses|msi)\b",
         "",
@@ -213,6 +326,10 @@ def detectar_monto(mensaje):
         match.group()
     )
 
+
+# =============================
+# DETECTAR PLAZOS
+# =============================
 
 def detectar_plazos(mensaje):
 
@@ -233,13 +350,20 @@ def detectar_plazos(mensaje):
     )
 
 
+# =============================
+# DETECTAR MES
+# =============================
+
 def detectar_mes(mensaje):
 
     mensaje_normalizado = normalizar_texto(
         mensaje
     )
 
-    palabras = mensaje_normalizado.split()
+    palabras = (
+        mensaje_normalizado
+        .split()
+    )
 
     for palabra in palabras:
 
@@ -248,11 +372,16 @@ def detectar_mes(mensaje):
         )
 
         if palabra in MESES:
-
-            return MESES[palabra]
+            return MESES[
+                palabra
+            ]
 
     return None
 
+
+# =============================
+# DETECTAR AÑO
+# =============================
 
 def detectar_anio(mensaje):
 
@@ -271,12 +400,26 @@ def detectar_anio(mensaje):
             and len(palabra) == 4
         ):
 
-            return int(palabra)
+            anio = int(
+                palabra
+            )
+
+            # Evitamos cosas absurdas
+            # tipo "Gasté 1200"
+            # interpretado como año.
+            if 1900 <= anio <= 2100:
+                return anio
 
     return None
 
 
-def detectar_periodo_relativo(mensaje):
+# =============================
+# PERIODO RELATIVO
+# =============================
+
+def detectar_periodo_relativo(
+    mensaje
+):
 
     mensaje_normalizado = normalizar_texto(
         mensaje
@@ -294,6 +437,10 @@ def detectar_periodo_relativo(mensaje):
     return None
 
 
+# =============================
+# DETECTAR SUBCATEGORÍA
+# =============================
+
 def detectar_subcategoria(
     mensaje,
     movimientos
@@ -304,21 +451,27 @@ def detectar_subcategoria(
     )
 
     # Primero buscamos alias.
-    # Los más largos se revisan primero.
+    # Los alias largos van primero.
     for alias in sorted(
         ALIAS_SUBCATEGORIAS,
         key=len,
         reverse=True
     ):
 
-        if normalizar_texto(alias) in mensaje_normalizado:
+        if (
+            normalizar_texto(
+                alias
+            )
+            in mensaje_normalizado
+        ):
 
             return ALIAS_SUBCATEGORIAS[
                 alias
             ]
 
-    # Después usamos las subcategorías
-    # que ya existen en Google Sheets.
+    # Después buscamos
+    # subcategorías existentes
+    # en Google Sheets.
     for movimiento in movimientos:
 
         subcategoria = str(
@@ -332,7 +485,9 @@ def detectar_subcategoria(
             continue
 
         if (
-            normalizar_texto(subcategoria)
+            normalizar_texto(
+                subcategoria
+            )
             in mensaje_normalizado
         ):
 
@@ -340,6 +495,10 @@ def detectar_subcategoria(
 
     return None
 
+
+# =============================
+# DETECTAR CUENTA
+# =============================
 
 def detectar_cuenta(
     mensaje,
@@ -350,23 +509,26 @@ def detectar_cuenta(
         mensaje
     )
 
-    # Importante:
-    # buscamos primero los alias largos.
-    # Así "bbva platinum" gana antes que "bbva".
+    # Alias largos primero.
+    # Así BBVA Platinum
+    # gana antes que BBVA.
     for alias in sorted(
         ALIAS_CUENTAS,
         key=len,
         reverse=True
     ):
 
-        if normalizar_texto(alias) in mensaje_normalizado:
+        if (
+            normalizar_texto(
+                alias
+            )
+            in mensaje_normalizado
+        ):
 
             return ALIAS_CUENTAS[
                 alias
             ]
 
-    # También buscamos directamente
-    # las cuentas existentes en Sheets.
     cuentas_existentes = []
 
     for movimiento in movimientos:
@@ -383,6 +545,12 @@ def detectar_cuenta(
                 cuenta
             )
 
+    cuentas_existentes = list(
+        set(
+            cuentas_existentes
+        )
+    )
+
     cuentas_existentes.sort(
         key=len,
         reverse=True
@@ -391,7 +559,9 @@ def detectar_cuenta(
     for cuenta in cuentas_existentes:
 
         if (
-            normalizar_texto(cuenta)
+            normalizar_texto(
+                cuenta
+            )
             in mensaje_normalizado
         ):
 
@@ -400,6 +570,10 @@ def detectar_cuenta(
     return None
 
 
+# =============================
+# DETECTAR CONCEPTO / DESCRIPCIÓN
+# =============================
+
 def detectar_concepto(
     mensaje,
     cuenta=None,
@@ -407,7 +581,9 @@ def detectar_concepto(
 ):
 
     texto = (
-        normalizar_texto(mensaje)
+        normalizar_texto(
+            mensaje
+        )
         .replace("$", "")
         .replace(",", "")
     )
@@ -444,8 +620,6 @@ def detectar_concepto(
         ):
             continue
 
-        # Quitamos números:
-        # monto y plazos.
         try:
             float(palabra)
             continue
@@ -472,28 +646,49 @@ def detectar_concepto(
 
     return ""
 
+
+# =============================
+# DETECTAR STATUS
+# =============================
+
 def detectar_status(mensaje):
 
-    mensaje = normalizar_texto(
+    mensaje_normalizado = normalizar_texto(
         mensaje
     )
 
     if (
-        "pendiente" in mensaje
-        or "pendientes" in mensaje
+        "pendiente"
+        in mensaje_normalizado
+        or
+        "pendientes"
+        in mensaje_normalizado
     ):
+
         return "Pendiente"
 
     if (
-        "pagado" in mensaje
-        or "pagados" in mensaje
-        or "pagada" in mensaje
-        or "pagadas" in mensaje
+        "pagado"
+        in mensaje_normalizado
+        or
+        "pagados"
+        in mensaje_normalizado
+        or
+        "pagada"
+        in mensaje_normalizado
+        or
+        "pagadas"
+        in mensaje_normalizado
     ):
+
         return "Pagado"
 
     return None
 
+
+# =============================
+# INTERPRETAR MENSAJE
+# =============================
 
 def interpretar_mensaje(
     mensaje,
@@ -501,6 +696,10 @@ def interpretar_mensaje(
 ):
 
     intencion = detectar_intencion(
+        mensaje
+    )
+
+    tipo_movimiento = detectar_tipo_movimiento(
         mensaje
     )
 
@@ -515,10 +714,10 @@ def interpretar_mensaje(
     )
 
     status = detectar_status(
-    mensaje
+        mensaje
     )
 
-    # Valores por defecto.
+    # Valores por defecto
     mes = None
     anio = None
     monto = None
@@ -545,6 +744,13 @@ def interpretar_mensaje(
             subcategoria
         )
 
+        if (
+            tipo_movimiento == "Ingreso"
+            and not concepto
+            and subcategoria is not None
+        ):
+            concepto = subcategoria
+
     # =========================
     # CONSULTA
     # =========================
@@ -567,11 +773,14 @@ def interpretar_mensaje(
 
         if periodo_relativo is not None:
 
-            mes = periodo_relativo["mes"]
-            anio = periodo_relativo["anio"]
+            mes = periodo_relativo[
+                "mes"
+            ]
 
-        # Si dice "en agosto" y no dice año,
-        # asumimos el año actual.
+            anio = periodo_relativo[
+                "anio"
+            ]
+
         elif (
             mes is not None
             and anio is None
@@ -581,6 +790,7 @@ def interpretar_mensaje(
 
     return {
         "intencion": intencion,
+        "tipo_movimiento": tipo_movimiento,
         "mes": mes,
         "anio": anio,
         "subcategoria": subcategoria,
@@ -592,31 +802,41 @@ def interpretar_mensaje(
     }
 
 
+# =============================
+# CALCULAR TOTAL
+# =============================
+
 def calcular_total(
     movimientos,
     mes=None,
     anio=None,
     subcategoria=None,
     cuenta=None,
-    status=None
+    status=None,
+    tipo_movimiento="Gasto"
 ):
 
     total = 0.0
 
     for movimiento in movimientos:
 
-        tipo_movimiento = normalizar_texto(
+        valor_tipo_movimiento = normalizar_texto(
             movimiento.get(
                 "Tipo de Movimiento",
                 ""
             )
         )
 
-        if tipo_movimiento != "gasto":
+        if (
+            valor_tipo_movimiento
+            != normalizar_texto(
+                tipo_movimiento
+            )
+        ):
             continue
 
         # =========================
-        # FILTRO DE FECHA
+        # FILTRO FECHA
         # =========================
 
         if (
@@ -634,7 +854,6 @@ def calcular_total(
                 )
 
             except ValueError:
-
                 continue
 
             if (
@@ -692,6 +911,7 @@ def calcular_total(
                 )
             ):
                 continue
+
         # =========================
         # FILTRO STATUS
         # =========================
@@ -730,7 +950,6 @@ def calcular_total(
             ValueError,
             TypeError
         ):
-
             continue
 
         total += monto
