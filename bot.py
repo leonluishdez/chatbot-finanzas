@@ -33,13 +33,14 @@ from finanzas import (
     obtener_movimientos_filtrados,
     convertir_monto,
     convertir_fecha,
-    normalizar_texto
+    normalizar_texto,
+    NOMBRES_MESES
 )
 
 
-# =============================
+# ============================================================
 # CONFIGURACIÓN
-# =============================
+# ============================================================
 
 load_dotenv()
 
@@ -48,9 +49,9 @@ TOKEN = os.getenv(
 )
 
 
-# =============================
+# ============================================================
 # CUENTAS
-# =============================
+# ============================================================
 
 CUENTA_INGRESOS = (
     "BBVA Debito"
@@ -64,9 +65,9 @@ CUENTAS_GASTO = [
 ]
 
 
-# =============================
+# ============================================================
 # CATEGORÍAS
-# =============================
+# ============================================================
 
 CATEGORIAS_GASTO = [
     "Comida",
@@ -89,9 +90,9 @@ CATEGORIAS_INGRESO = [
 ]
 
 
-# =============================
+# ============================================================
 # FUNCIONES AUXILIARES
-# =============================
+# ============================================================
 
 def obtener_tipo_pago(
     tipo_movimiento,
@@ -120,9 +121,9 @@ def obtener_status_default(
     return "Pendiente"
 
 
-# =============================
-# TECLADO CATEGORÍAS
-# =============================
+# ============================================================
+# TECLADO DE CATEGORÍAS
+# ============================================================
 
 def crear_teclado_categorias(
     tipo_movimiento="Gasto"
@@ -145,13 +146,10 @@ def crear_teclado_categorias(
 
     for categoria in categorias:
 
-        boton = (
-            InlineKeyboardButton(
-                categoria,
-                callback_data=(
-                    f"categoria:"
-                    f"{categoria}"
-                )
+        boton = InlineKeyboardButton(
+            categoria,
+            callback_data=(
+                f"categoria:{categoria}"
             )
         )
 
@@ -178,9 +176,9 @@ def crear_teclado_categorias(
     )
 
 
-# =============================
-# TECLADO CUENTAS
-# =============================
+# ============================================================
+# TECLADO DE CUENTAS
+# ============================================================
 
 def crear_teclado_cuentas():
 
@@ -189,13 +187,10 @@ def crear_teclado_cuentas():
 
     for cuenta in CUENTAS_GASTO:
 
-        boton = (
-            InlineKeyboardButton(
-                cuenta,
-                callback_data=(
-                    f"cuenta:"
-                    f"{cuenta}"
-                )
+        boton = InlineKeyboardButton(
+            cuenta,
+            callback_data=(
+                f"cuenta:{cuenta}"
             )
         )
 
@@ -222,37 +217,35 @@ def crear_teclado_cuentas():
     )
 
 
-# =============================
-# TECLADO CONFIRMACIÓN
-# =============================
+# ============================================================
+# TECLADO DE CONFIRMACIÓN
+# ============================================================
 
 def crear_teclado_confirmacion():
 
-    teclado = [
-        [
-            InlineKeyboardButton(
-                "Confirmar ✅",
-                callback_data=(
-                    "confirmar_gasto"
-                )
-            ),
-            InlineKeyboardButton(
-                "Cancelar ❌",
-                callback_data=(
-                    "cancelar_gasto"
-                )
-            )
-        ]
-    ]
-
     return InlineKeyboardMarkup(
-        teclado
+        [
+            [
+                InlineKeyboardButton(
+                    "Confirmar ✅",
+                    callback_data=(
+                        "confirmar_gasto"
+                    )
+                ),
+                InlineKeyboardButton(
+                    "Cancelar ❌",
+                    callback_data=(
+                        "cancelar_gasto"
+                    )
+                )
+            ]
+        ]
     )
 
 
-# =============================
+# ============================================================
 # RESUMEN DE CONFIRMACIÓN
-# =============================
+# ============================================================
 
 def crear_resumen_confirmacion(
     datos
@@ -280,25 +273,14 @@ def crear_resumen_confirmacion(
     resumen = (
         "Confirma el movimiento:\n\n"
         f"Tipo: {tipo_movimiento}\n"
-        f"Descripción: "
-        f"{datos['concepto']}\n"
-        f"Monto: "
-        f"${datos['monto']:,.2f}\n"
-        f"Cuenta: "
-        f"{datos['cuenta']}\n"
-        f"Categoría: "
-        f"{datos['categoria']}\n"
-        f"Tipo de pago: "
-        f"{tipo_pago}\n"
-        f"Plazos: "
-        f"{plazos}\n"
-        f"Status: "
-        f"{status}"
+        f"Descripción: {datos['concepto']}\n"
+        f"Monto: ${datos['monto']:,.2f}\n"
+        f"Cuenta: {datos['cuenta']}\n"
+        f"Categoría: {datos['categoria']}\n"
+        f"Tipo de pago: {tipo_pago}\n"
+        f"Plazos: {plazos}\n"
+        f"Status: {status}"
     )
-
-    # =============================
-    # INFORMACIÓN MSI
-    # =============================
 
     if (
         tipo_movimiento == "Gasto"
@@ -310,11 +292,9 @@ def crear_resumen_confirmacion(
             datetime.now()
         )
 
-        fecha_corte = (
-            calcular_fecha_corte(
-                fecha_compra,
-                datos["cuenta"]
-            )
+        fecha_corte = calcular_fecha_corte(
+            fecha_compra,
+            datos["cuenta"]
         )
 
         primera_fecha_pago = (
@@ -340,7 +320,7 @@ def crear_resumen_confirmacion(
 
             resumen += (
                 "\n"
-                f"Corte aplicable: "
+                "Corte aplicable: "
                 f"{fecha_corte.strftime('%d/%m/%Y')}"
             )
 
@@ -348,26 +328,58 @@ def crear_resumen_confirmacion(
 
             resumen += (
                 "\n"
-                f"Primer pago: "
+                "Primer pago: "
                 f"{primera_fecha_pago.strftime('%d/%m/%Y')}"
             )
 
     return resumen
+
+
+# ============================================================
+# RESUMEN DE MENSUALIDADES
+# ============================================================
 
 def crear_resumen_mensualidades(
     movimientos
 ):
 
     if not movimientos:
+
         return None
 
-    movimientos_ordenados = sorted(
-        movimientos,
-        key=lambda movimiento: convertir_fecha(
-            movimiento.get(
-                "Fecha de Pago",
-                ""
+    movimientos_validos = []
+
+    for movimiento in movimientos:
+
+        try:
+
+            fecha = convertir_fecha(
+                movimiento.get(
+                    "Fecha de Pago",
+                    ""
+                )
             )
+
+        except ValueError:
+
+            continue
+
+        movimiento_copia = dict(
+            movimiento
+        )
+
+        movimiento_copia[
+            "_fecha"
+        ] = fecha
+
+        movimientos_validos.append(
+            movimiento_copia
+        )
+
+    movimientos_ordenados = sorted(
+        movimientos_validos,
+        key=lambda movimiento: (
+            movimiento["_fecha"]
         )
     )
 
@@ -391,6 +403,12 @@ def crear_resumen_mensualidades(
             )
         ).strip()
 
+        if not descripcion:
+
+            descripcion = (
+                "Sin descripción"
+            )
+
         try:
 
             monto = convertir_monto(
@@ -407,12 +425,9 @@ def crear_resumen_mensualidades(
 
             monto = 0.0
 
-        fecha = convertir_fecha(
-            movimiento.get(
-                "Fecha de Pago",
-                ""
-            )
-        )
+        fecha = movimiento[
+            "_fecha"
+        ]
 
         if cuenta not in movimientos_por_cuenta:
 
@@ -432,12 +447,19 @@ def crear_resumen_mensualidades(
 
         total_general += monto
 
+    if not movimientos_por_cuenta:
+
+        return None
+
     lineas = [
         "💳 Mensualidades pendientes",
         ""
     ]
 
-    for cuenta, cargos in movimientos_por_cuenta.items():
+    for (
+        cuenta,
+        cargos
+    ) in movimientos_por_cuenta.items():
 
         lineas.append(
             cuenta
@@ -460,7 +482,10 @@ def crear_resumen_mensualidades(
             ]
 
         lineas.append(
-            f"Subtotal: ${subtotal:,.2f}"
+            (
+                f"Subtotal: "
+                f"${subtotal:,.2f}"
+            )
         )
 
         lineas.append(
@@ -468,7 +493,10 @@ def crear_resumen_mensualidades(
         )
 
     lineas.append(
-        f"Total: ${total_general:,.2f}"
+        (
+            f"Total: "
+            f"${total_general:,.2f}"
+        )
     )
 
     return "\n".join(
@@ -477,7 +505,115 @@ def crear_resumen_mensualidades(
 
 
 # ============================================================
-# MENSAJES DE TEXTO
+# RESUMEN DE PROYECCIÓN
+# ============================================================
+
+def crear_resumen_proyeccion(
+    movimientos,
+    periodos,
+    subcategoria=None,
+    cuenta=None,
+    status=None,
+    tipo_pago=None,
+    tipo_movimiento="Gasto"
+):
+
+    resultados = []
+
+    total_general = 0.0
+
+    for periodo in periodos:
+
+        numero_mes = periodo[
+            "mes"
+        ]
+
+        anio = periodo[
+            "anio"
+        ]
+
+        total_mes = calcular_total(
+            movimientos,
+            mes=numero_mes,
+            anio=anio,
+            subcategoria=subcategoria,
+            cuenta=cuenta,
+            status=status,
+            tipo_pago=tipo_pago,
+            tipo_movimiento=tipo_movimiento
+        )
+
+        resultados.append(
+            {
+                "mes": numero_mes,
+                "anio": anio,
+                "total": total_mes,
+            }
+        )
+
+        total_general += total_mes
+
+    anios = {
+        resultado["anio"]
+        for resultado in resultados
+    }
+
+    mostrar_anio = (
+        len(anios) > 1
+    )
+
+    lineas = [
+        "📊 Compromisos próximos",
+        ""
+    ]
+
+    for resultado in resultados:
+
+        nombre_mes = NOMBRES_MESES.get(
+            resultado["mes"],
+            str(
+                resultado["mes"]
+            )
+        )
+
+        if mostrar_anio:
+
+            etiqueta = (
+                f"{nombre_mes} "
+                f"{resultado['anio']}"
+            )
+
+        else:
+
+            etiqueta = (
+                nombre_mes
+            )
+
+        lineas.append(
+            (
+                f"{etiqueta}: "
+                f"${resultado['total']:,.2f}"
+            )
+        )
+
+    lineas.append(
+        ""
+    )
+
+    lineas.append(
+        (
+            "Total comprometido: "
+            f"${total_general:,.2f}"
+        )
+    )
+
+    return "\n".join(
+        lineas
+    )
+
+
+# ============================================================
+# RESPONDER MENSAJE
 # ============================================================
 
 async def responder_mensaje(
@@ -494,7 +630,7 @@ async def responder_mensaje(
     )
 
     # ========================================================
-    # ESTAMOS ESPERANDO UNA DESCRIPCIÓN
+    # ESPERANDO DESCRIPCIÓN
     # ========================================================
 
     if context.user_data.get(
@@ -515,8 +651,10 @@ async def responder_mensaje(
             )
 
             await update.message.reply_text(
-                "El movimiento pendiente "
-                "ya no existe."
+                (
+                    "El movimiento pendiente "
+                    "ya no existe."
+                )
             )
 
             return
@@ -545,23 +683,11 @@ async def responder_mensaje(
             )
         )
 
-        # -------------------------
-        # INGRESO
-        # -------------------------
-
         if tipo_movimiento == "Ingreso":
 
             movimiento_pendiente[
                 "cuenta"
             ] = CUENTA_INGRESOS
-
-            context.user_data[
-                "gasto_pendiente"
-            ] = movimiento_pendiente
-
-        # -------------------------
-        # GASTO SIN CUENTA
-        # -------------------------
 
         elif movimiento_pendiente.get(
             "cuenta"
@@ -581,10 +707,6 @@ async def responder_mensaje(
             )
 
             return
-
-        # -------------------------
-        # SUBCATEGORÍA DETECTADA
-        # -------------------------
 
         subcategoria = (
             movimiento_pendiente.get(
@@ -612,10 +734,6 @@ async def responder_mensaje(
             )
 
             return
-
-        # -------------------------
-        # PEDIR CATEGORÍA
-        # -------------------------
 
         await update.message.reply_text(
             (
@@ -698,19 +816,10 @@ async def responder_mensaje(
                 datetime.now()
             )
 
-            # -------------------------
-            # INGRESOS
-            # -------------------------
-
             if tipo_movimiento == "Ingreso":
 
                 cuenta = CUENTA_INGRESOS
-
                 plazos = 1
-
-            # -------------------------
-            # VALIDAR MONTO
-            # -------------------------
 
             if monto is None:
 
@@ -734,11 +843,6 @@ async def responder_mensaje(
 
                 return
 
-            # -------------------------
-            # GUARDAR MOVIMIENTO
-            # TEMPORAL
-            # -------------------------
-
             context.user_data[
                 "gasto_pendiente"
             ] = {
@@ -750,10 +854,6 @@ async def responder_mensaje(
                 "plazos": plazos,
                 "fecha_compra": fecha_compra,
             }
-
-            # -------------------------
-            # FALTA DESCRIPCIÓN
-            # -------------------------
 
             if not concepto:
 
@@ -779,10 +879,6 @@ async def responder_mensaje(
 
                 return
 
-            # -------------------------
-            # GASTO SIN CUENTA
-            # -------------------------
-
             if (
                 tipo_movimiento == "Gasto"
                 and cuenta is None
@@ -800,17 +896,11 @@ async def responder_mensaje(
 
                 return
 
-            # -------------------------
-            # VALIDAR TARJETA
-            # -------------------------
-
             if (
                 tipo_movimiento == "Gasto"
                 and cuenta not in CUENTAS_GASTO
             ):
 
-                # Puede ocurrir si encuentra
-                # una cuenta histórica.
                 context.user_data[
                     "gasto_pendiente"
                 ][
@@ -830,10 +920,6 @@ async def responder_mensaje(
 
                 return
 
-            # -------------------------
-            # SUBCATEGORÍA DETECTADA
-            # -------------------------
-
             if subcategoria is not None:
 
                 movimiento_pendiente = (
@@ -846,10 +932,6 @@ async def responder_mensaje(
                     "categoria"
                 ] = subcategoria
 
-                context.user_data[
-                    "gasto_pendiente"
-                ] = movimiento_pendiente
-
                 await update.message.reply_text(
                     crear_resumen_confirmacion(
                         movimiento_pendiente
@@ -860,10 +942,6 @@ async def responder_mensaje(
                 )
 
                 return
-
-            # -------------------------
-            # PEDIR CATEGORÍA
-            # -------------------------
 
             tipo_pago = obtener_tipo_pago(
                 tipo_movimiento,
@@ -884,18 +962,12 @@ async def responder_mensaje(
 
             respuesta = (
                 "Voy a registrar:\n\n"
-                f"Tipo: "
-                f"{tipo_movimiento}\n"
-                f"Descripción: "
-                f"{concepto}\n"
-                f"Monto: "
-                f"${monto:,.2f}\n"
-                f"Cuenta: "
-                f"{cuenta}\n"
-                f"Tipo de pago: "
-                f"{tipo_pago}\n"
-                f"Plazos: "
-                f"{detalle_pago}\n\n"
+                f"Tipo: {tipo_movimiento}\n"
+                f"Descripción: {concepto}\n"
+                f"Monto: ${monto:,.2f}\n"
+                f"Cuenta: {cuenta}\n"
+                f"Tipo de pago: {tipo_pago}\n"
+                f"Plazos: {detalle_pago}\n\n"
                 "Selecciona la categoría:"
             )
 
@@ -916,6 +988,16 @@ async def responder_mensaje(
 
         mes = datos.get(
             "mes"
+        )
+
+        meses = datos.get(
+            "meses",
+            []
+        )
+
+        periodos = datos.get(
+            "periodos",
+            []
         )
 
         anio = datos.get(
@@ -943,26 +1025,57 @@ async def responder_mensaje(
             "Gasto"
         )
 
-        mensaje_normalizado = normalizar_texto(
-            mensaje_usuario
+        # ====================================================
+        # CONVERTIR VARIOS MESES EXPLÍCITOS EN PERIODOS
+        # ====================================================
+
+        periodos_consulta = list(
+            periodos
         )
 
-        consulta_detalle_msi = (
-            tipo_pago == "Meses"
-            and (
-                "que mensualidades" in mensaje_normalizado
-                or "cuales mensualidades" in mensaje_normalizado
-                or "que pagos" in mensaje_normalizado
-                or "cuales pagos" in mensaje_normalizado
+        if (
+            not periodos_consulta
+            and len(meses) > 1
+        ):
+
+            periodos_consulta = [
+                {
+                    "mes": numero_mes,
+                    "anio": anio,
+                }
+                for numero_mes in meses
+            ]
+
+        # ====================================================
+        # PROYECCIÓN
+        # ====================================================
+
+        if periodos_consulta:
+
+            respuesta = crear_resumen_proyeccion(
+                movimientos,
+                periodos_consulta,
+                subcategoria=subcategoria,
+                cuenta=cuenta,
+                status=status,
+                tipo_pago=tipo_pago,
+                tipo_movimiento=tipo_movimiento
             )
-        )
 
-        # -------------------------
-        # SIN FILTROS
-        # -------------------------
+            await update.message.reply_text(
+                respuesta
+            )
+
+            return
+
+        # ====================================================
+        # VALIDAR CONSULTA
+        # ====================================================
 
         if (
             mes is None
+            and not meses
+            and not periodos
             and anio is None
             and subcategoria is None
             and cuenta is None
@@ -979,6 +1092,33 @@ async def responder_mensaje(
 
             return
 
+        # ====================================================
+        # DETALLE DE MENSUALIDADES
+        # ====================================================
+
+        mensaje_normalizado = (
+            normalizar_texto(
+                mensaje_usuario
+            )
+        )
+
+        consulta_detalle_msi = (
+            tipo_pago == "Meses"
+            and (
+                "que mensualidades"
+                in mensaje_normalizado
+
+                or "cuales mensualidades"
+                in mensaje_normalizado
+
+                or "que pagos"
+                in mensaje_normalizado
+
+                or "cuales pagos"
+                in mensaje_normalizado
+            )
+        )
+
         if consulta_detalle_msi:
 
             movimientos_filtrados = (
@@ -994,14 +1134,19 @@ async def responder_mensaje(
                 )
             )
 
-            resumen = crear_resumen_mensualidades(
-                movimientos_filtrados
+            resumen = (
+                crear_resumen_mensualidades(
+                    movimientos_filtrados
+                )
             )
 
             if resumen is None:
 
                 await update.message.reply_text(
-                    "No encontré mensualidades pendientes para ese periodo."
+                    (
+                        "No encontré mensualidades "
+                        "pendientes para ese periodo."
+                    )
                 )
 
                 return
@@ -1012,9 +1157,9 @@ async def responder_mensaje(
 
             return
 
-        # -------------------------
-        # CALCULAR TOTAL
-        # -------------------------
+        # ====================================================
+        # TOTAL NORMAL
+        # ====================================================
 
         total = calcular_total(
             movimientos,
@@ -1026,10 +1171,6 @@ async def responder_mensaje(
             tipo_pago=tipo_pago,
             tipo_movimiento=tipo_movimiento
         )
-
-        # -------------------------
-        # CONSTRUIR DESCRIPCIÓN
-        # -------------------------
 
         partes = []
 
@@ -1059,30 +1200,21 @@ async def responder_mensaje(
 
         if mes is not None:
 
-            ahora = datetime.now()
+            nombre_mes = NOMBRES_MESES.get(
+                mes,
+                str(mes)
+            )
 
-            if (
-                mes == ahora.month
-                and anio == ahora.year
-            ):
-
-                partes.append(
-                    "este mes"
+            partes.append(
+                (
+                    f"en {nombre_mes.lower()} "
+                    f"de {anio}"
                 )
-
-            else:
-
-                partes.append(
-                    f"en {mes}/{anio}"
-                )
+            )
 
         detalle = " ".join(
             partes
         )
-
-        # -------------------------
-        # TOTAL = 0
-        # -------------------------
 
         if total == 0:
 
@@ -1107,8 +1239,7 @@ async def responder_mensaje(
             if detalle:
 
                 respuesta = (
-                    f"{inicio} "
-                    f"{detalle}."
+                    f"{inicio} {detalle}."
                 )
 
             else:
@@ -1116,10 +1247,6 @@ async def responder_mensaje(
                 respuesta = (
                     f"{inicio}."
                 )
-
-        # -------------------------
-        # TOTAL > 0
-        # -------------------------
 
         else:
 
@@ -1133,16 +1260,14 @@ async def responder_mensaje(
             elif status == "Pendiente":
 
                 inicio = (
-                    f"Tienes "
-                    f"${total:,.2f} "
+                    f"Tienes ${total:,.2f} "
                     "pendiente"
                 )
 
             elif status == "Pagado":
 
                 inicio = (
-                    f"Tienes "
-                    f"${total:,.2f} "
+                    f"Tienes ${total:,.2f} "
                     "pagado"
                 )
 
@@ -1156,8 +1281,7 @@ async def responder_mensaje(
             if detalle:
 
                 respuesta = (
-                    f"{inicio} "
-                    f"{detalle}."
+                    f"{inicio} {detalle}."
                 )
 
             else:
@@ -1222,19 +1346,9 @@ async def manejar_cuenta(
         "Gasto"
     )
 
-    # -------------------------
-    # INGRESOS
-    # -------------------------
-
     if tipo_movimiento == "Ingreso":
 
-        cuenta = (
-            CUENTA_INGRESOS
-        )
-
-    # -------------------------
-    # GASTOS
-    # -------------------------
+        cuenta = CUENTA_INGRESOS
 
     else:
 
@@ -1267,19 +1381,11 @@ async def manejar_cuenta(
         "subcategoria"
     )
 
-    # -------------------------
-    # CATEGORÍA YA CONOCIDA
-    # -------------------------
-
     if subcategoria is not None:
 
         datos[
             "categoria"
         ] = subcategoria
-
-        context.user_data[
-            "gasto_pendiente"
-        ] = datos
 
         await query.edit_message_text(
             crear_resumen_confirmacion(
@@ -1292,14 +1398,9 @@ async def manejar_cuenta(
 
         return
 
-    # -------------------------
-    # PEDIR CATEGORÍA
-    # -------------------------
-
     await query.edit_message_text(
         (
-            f"Cuenta: "
-            f"{cuenta}\n\n"
+            f"Cuenta: {cuenta}\n\n"
             "Ahora selecciona "
             "la categoría:"
         ),
@@ -1368,7 +1469,7 @@ async def manejar_categoria(
 
 
 # ============================================================
-# CONFIRMAR MOVIMIENTO
+# CONFIRMAR
 # ============================================================
 
 async def confirmar_gasto(
@@ -1404,10 +1505,6 @@ async def confirmar_gasto(
         "Gasto"
     )
 
-    # ========================================================
-    # VALIDAR CUENTA
-    # ========================================================
-
     if tipo_movimiento == "Ingreso":
 
         datos[
@@ -1426,10 +1523,6 @@ async def confirmar_gasto(
         )
 
         return
-
-    # ========================================================
-    # FECHAS
-    # ========================================================
 
     fecha_compra = datos.get(
         "fecha_compra",
@@ -1463,7 +1556,7 @@ async def confirmar_gasto(
     try:
 
         # ====================================================
-        # GASTO A MESES
+        # MSI
         # ====================================================
 
         if (
@@ -1507,9 +1600,11 @@ async def confirmar_gasto(
                 )
 
             print(
-                "Registrando "
-                f"{len(filas)} "
-                "mensualidades..."
+                (
+                    "Registrando "
+                    f"{len(filas)} "
+                    "mensualidades..."
+                )
             )
 
             registrar_movimientos(
@@ -1517,7 +1612,7 @@ async def confirmar_gasto(
             )
 
         # ====================================================
-        # CONTADO O INGRESO
+        # CONTADO / INGRESO
         # ====================================================
 
         else:
@@ -1603,32 +1698,27 @@ async def confirmar_gasto(
             if fecha_corte is not None:
 
                 respuesta += (
-                    f"Corte aplicable: "
+                    "Corte aplicable: "
                     f"{fecha_corte.strftime('%d/%m/%Y')}"
                     "\n"
                 )
 
             respuesta += (
-                f"Primer pago: "
+                "Primer pago: "
                 f"{primera_cuota['fecha'].strftime('%d/%m/%Y')}"
                 "\n"
-                f"Último pago: "
+                "Último pago: "
                 f"{ultima_cuota['fecha'].strftime('%d/%m/%Y')}"
                 "\n\n"
                 f"Se crearon "
                 f"{plazos} mensualidades."
             )
 
-        # ====================================================
-        # RESPUESTA NORMAL
-        # ====================================================
-
         else:
 
             respuesta = (
                 "Movimiento registrado ✅\n\n"
-                f"Tipo: "
-                f"{tipo_movimiento}\n"
+                f"Tipo: {tipo_movimiento}\n"
                 f"Descripción: "
                 f"{datos['concepto']}\n"
                 f"Monto: "
@@ -1652,8 +1742,10 @@ async def confirmar_gasto(
     except Exception as error:
 
         print(
-            "Error registrando movimiento: "
-            f"{error}"
+            (
+                "Error registrando movimiento: "
+                f"{error}"
+            )
         )
 
         await query.edit_message_text(
@@ -1665,7 +1757,7 @@ async def confirmar_gasto(
 
 
 # ============================================================
-# CANCELAR MOVIMIENTO
+# CANCELAR
 # ============================================================
 
 async def cancelar_gasto(
@@ -1706,8 +1798,10 @@ async def manejar_error(
 ):
 
     print(
-        "Error de Telegram: "
-        f"{context.error}"
+        (
+            "Error de Telegram: "
+            f"{context.error}"
+        )
     )
 
 
@@ -1720,8 +1814,10 @@ def main():
     if not TOKEN:
 
         raise RuntimeError(
-            "No se encontró "
-            "TELEGRAM_TOKEN."
+            (
+                "No se encontró "
+                "TELEGRAM_TOKEN."
+            )
         )
 
     app = (
@@ -1755,18 +1851,14 @@ def main():
     app.add_handler(
         CallbackQueryHandler(
             confirmar_gasto,
-            pattern=(
-                r"^confirmar_gasto$"
-            )
+            pattern=r"^confirmar_gasto$"
         )
     )
 
     app.add_handler(
         CallbackQueryHandler(
             cancelar_gasto,
-            pattern=(
-                r"^cancelar_gasto$"
-            )
+            pattern=r"^cancelar_gasto$"
         )
     )
 
