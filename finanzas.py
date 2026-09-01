@@ -736,6 +736,7 @@ def detectar_status(mensaje):
         "debo",
         "deuda",
         "por pagar",
+        "pagar",
     ]
 
     for palabra in palabras_pendiente:
@@ -764,21 +765,27 @@ def detectar_status(mensaje):
 # DETECTAR TIPO DE PAGO
 # =============================
 
-def detectar_tipo_pago(mensaje):
+def detectar_tipo_pago(
+    mensaje
+):
 
     mensaje_normalizado = normalizar_texto(
         mensaje
     )
 
-    if (
-        "meses" in mensaje_normalizado
-        or "msi" in mensaje_normalizado
-    ):
+    palabras_meses = [
+        "meses",
+        "msi",
+        "mensualidad",
+        "mensualidades",
+    ]
 
-        return "Meses"
+    for palabra in palabras_meses:
+
+        if palabra in mensaje_normalizado:
+            return "Meses"
 
     if "contado" in mensaje_normalizado:
-
         return "Contado"
 
     return None
@@ -912,6 +919,164 @@ def interpretar_mensaje(
         "status": status,
         "tipo_pago": tipo_pago,
     }
+
+def obtener_movimientos_filtrados(
+    movimientos,
+    mes=None,
+    anio=None,
+    subcategoria=None,
+    cuenta=None,
+    status=None,
+    tipo_pago=None,
+    tipo_movimiento="Gasto"
+):
+
+    resultados = []
+
+    for movimiento in movimientos:
+
+        # =============================
+        # TIPO DE MOVIMIENTO
+        # =============================
+
+        valor_tipo_movimiento = normalizar_texto(
+            movimiento.get(
+                "Tipo de Movimiento",
+                ""
+            )
+        )
+
+        if (
+            valor_tipo_movimiento
+            != normalizar_texto(
+                tipo_movimiento
+            )
+        ):
+            continue
+
+        # =============================
+        # FECHA
+        # =============================
+
+        if (
+            mes is not None
+            or anio is not None
+        ):
+
+            try:
+
+                fecha = convertir_fecha(
+                    movimiento.get(
+                        "Fecha de Pago",
+                        ""
+                    )
+                )
+
+            except ValueError:
+
+                continue
+
+            if (
+                mes is not None
+                and fecha.month != mes
+            ):
+                continue
+
+            if (
+                anio is not None
+                and fecha.year != anio
+            ):
+                continue
+
+        # =============================
+        # SUBCATEGORÍA
+        # =============================
+
+        if subcategoria is not None:
+
+            valor_subcategoria = normalizar_texto(
+                movimiento.get(
+                    "Subcategoria",
+                    ""
+                )
+            )
+
+            if (
+                valor_subcategoria
+                != normalizar_texto(
+                    subcategoria
+                )
+            ):
+                continue
+
+        # =============================
+        # CUENTA
+        # =============================
+
+        if cuenta is not None:
+
+            valor_cuenta = normalizar_texto(
+                movimiento.get(
+                    "Cuenta",
+                    ""
+                )
+            )
+
+            if (
+                valor_cuenta
+                != normalizar_texto(
+                    cuenta
+                )
+            ):
+                continue
+
+        # =============================
+        # STATUS
+        # =============================
+
+        if status is not None:
+
+            valor_status = normalizar_texto(
+                movimiento.get(
+                    "Status",
+                    ""
+                )
+            )
+
+            if (
+                valor_status
+                != normalizar_texto(
+                    status
+                )
+            ):
+                continue
+
+        # =============================
+        # TIPO DE PAGO
+        # =============================
+
+        if tipo_pago is not None:
+
+            valor_tipo_pago = normalizar_texto(
+                movimiento.get(
+                    "Tipo de Pago",
+                    ""
+                )
+            )
+
+            if (
+                valor_tipo_pago
+                != normalizar_texto(
+                    tipo_pago
+                )
+            ):
+                continue
+
+        resultados.append(
+            movimiento
+        )
+
+    return resultados
 
 
 # =============================

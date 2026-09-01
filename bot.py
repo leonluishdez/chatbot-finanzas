@@ -29,7 +29,11 @@ from finanzas import (
     calcular_total,
     generar_cuotas,
     calcular_fecha_corte,
-    calcular_primera_fecha_pago
+    calcular_primera_fecha_pago,
+    obtener_movimientos_filtrados,
+    convertir_monto,
+    convertir_fecha,
+    normalizar_texto
 )
 
 
@@ -349,6 +353,127 @@ def crear_resumen_confirmacion(
             )
 
     return resumen
+
+def crear_resumen_mensualidades(
+    movimientos
+):
+
+    if not movimientos:
+        return None
+
+    movimientos_ordenados = sorted(
+        movimientos,
+        key=lambda movimiento: convertir_fecha(
+            movimiento.get(
+                "Fecha de Pago",
+                ""
+            )
+        )
+    )
+
+    movimientos_por_cuenta = {}
+
+    total_general = 0.0
+
+    for movimiento in movimientos_ordenados:
+
+        cuenta = str(
+            movimiento.get(
+                "Cuenta",
+                "Sin cuenta"
+            )
+        ).strip()
+
+        descripcion = str(
+            movimiento.get(
+                "Descripcion",
+                "Sin descripción"
+            )
+        ).strip()
+
+        try:
+
+            monto = convertir_monto(
+                movimiento.get(
+                    "Monto de Compra",
+                    0
+                )
+            )
+
+        except (
+            ValueError,
+            TypeError
+        ):
+
+            monto = 0.0
+
+        fecha = convertir_fecha(
+            movimiento.get(
+                "Fecha de Pago",
+                ""
+            )
+        )
+
+        if cuenta not in movimientos_por_cuenta:
+
+            movimientos_por_cuenta[
+                cuenta
+            ] = []
+
+        movimientos_por_cuenta[
+            cuenta
+        ].append(
+            {
+                "descripcion": descripcion,
+                "monto": monto,
+                "fecha": fecha,
+            }
+        )
+
+        total_general += monto
+
+    lineas = [
+        "💳 Mensualidades pendientes",
+        ""
+    ]
+
+    for cuenta, cargos in movimientos_por_cuenta.items():
+
+        lineas.append(
+            cuenta
+        )
+
+        subtotal = 0.0
+
+        for cargo in cargos:
+
+            lineas.append(
+                (
+                    f"• {cargo['descripcion']} "
+                    f"— ${cargo['monto']:,.2f} "
+                    f"({cargo['fecha'].strftime('%d/%m/%Y')})"
+                )
+            )
+
+            subtotal += cargo[
+                "monto"
+            ]
+
+        lineas.append(
+            f"Subtotal: ${subtotal:,.2f}"
+        )
+
+        lineas.append(
+            ""
+        )
+
+    lineas.append(
+        f"Total: ${total_general:,.2f}"
+    )
+
+    return "\n".join(
+        lineas
+    )
 
 
 # ============================================================
@@ -818,6 +943,20 @@ async def responder_mensaje(
             "Gasto"
         )
 
+        mensaje_normalizado = normalizar_texto(
+            mensaje_usuario
+        )
+
+        consulta_detalle_msi = (
+            tipo_pago == "Meses"
+            and (
+                "que mensualidades" in mensaje_normalizado
+                or "cuales mensualidades" in mensaje_normalizado
+                or "que pagos" in mensaje_normalizado
+                or "cuales pagos" in mensaje_normalizado
+            )
+        )
+
         # -------------------------
         # SIN FILTROS
         # -------------------------
@@ -836,6 +975,39 @@ async def responder_mensaje(
                     "No pude identificar "
                     "qué quieres consultar."
                 )
+            )
+
+            return
+
+        if consulta_detalle_msi:
+
+            movimientos_filtrados = (
+                obtener_movimientos_filtrados(
+                    movimientos,
+                    mes=mes,
+                    anio=anio,
+                    subcategoria=subcategoria,
+                    cuenta=cuenta,
+                    status=status,
+                    tipo_pago=tipo_pago,
+                    tipo_movimiento=tipo_movimiento
+                )
+            )
+
+            resumen = crear_resumen_mensualidades(
+                movimientos_filtrados
+            )
+
+            if resumen is None:
+
+                await update.message.reply_text(
+                    "No encontré mensualidades pendientes para ese periodo."
+                )
+
+                return
+
+            await update.message.reply_text(
+                resumen
             )
 
             return
