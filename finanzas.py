@@ -3,6 +3,7 @@ import re
 import unicodedata
 
 from datetime import datetime
+from decimal import Decimal, ROUND_HALF_UP
 
 
 # ============================================================
@@ -2092,21 +2093,93 @@ def obtener_movimientos_fecha_pago(
 
 def dividir_monto_en_plazos(
     monto_total,
-    plazos
+    plazos,
+    cuenta=None
 ):
+
+    monto_total = Decimal(
+        str(monto_total)
+    )
 
     if plazos <= 1:
 
         return [
-            round(
-                monto_total,
-                2
+            float(
+                monto_total.quantize(
+                    Decimal("0.01")
+                )
             )
         ]
 
-    monto_base = round(
-        monto_total / plazos,
-        2
+    # ========================================================
+    # BBVA PLATINUM
+    # ========================================================
+    #
+    # BBVA redondea las parcialidades intermedias
+    # a pesos enteros.
+    #
+    # La última cuota absorbe la diferencia para que
+    # la suma de todas las parcialidades sea exactamente
+    # igual al monto original.
+    # ========================================================
+
+    if cuenta == "BBVA Platinum":
+
+        monto_teorico = (
+            monto_total
+            / Decimal(
+                plazos
+            )
+        )
+
+        monto_base = monto_teorico.quantize(
+            Decimal("1"),
+            rounding=ROUND_HALF_UP
+        )
+
+        montos = [
+            monto_base
+            for _ in range(
+                plazos - 1
+            )
+        ]
+
+        suma_anteriores = sum(
+            montos,
+            Decimal("0")
+        )
+
+        ultima_cuota = (
+            monto_total
+            - suma_anteriores
+        )
+
+        montos.append(
+            ultima_cuota.quantize(
+                Decimal("0.01"),
+                rounding=ROUND_HALF_UP
+            )
+        )
+
+        return [
+            float(
+                monto
+            )
+            for monto in montos
+        ]
+
+    # ========================================================
+    # RESTO DE TARJETAS
+    # ========================================================
+
+    monto_base = (
+        monto_total
+        / Decimal(
+            plazos
+        )
+    ).quantize(
+        Decimal("0.01"),
+        rounding=ROUND_HALF_UP
     )
 
     montos = [
@@ -2116,24 +2189,28 @@ def dividir_monto_en_plazos(
         )
     ]
 
-    diferencia = round(
+    diferencia = (
         monto_total
         - sum(
-            montos
-        ),
-        2
+            montos,
+            Decimal("0")
+        )
     )
 
-    # Ajustamos centavos en la última cuota
-
-    montos[-1] = round(
+    montos[-1] = (
         montos[-1]
-        + diferencia,
-        2
+        + diferencia
+    ).quantize(
+        Decimal("0.01"),
+        rounding=ROUND_HALF_UP
     )
 
-    return montos
-
+    return [
+        float(
+            monto
+        )
+        for monto in montos
+    ]
 
 # ============================================================
 # GENERAR FECHAS DE PLAZOS
