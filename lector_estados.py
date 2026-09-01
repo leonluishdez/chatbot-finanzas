@@ -1074,6 +1074,161 @@ def sumar_movimientos(
         2
     )
 
+# ============================================================
+# EXTRAER PLANES MSI BBVA
+# ============================================================
+
+def extraer_planes_msi_bbva(
+    texto
+):
+
+    planes = []
+
+    patron = re.compile(
+        (
+            r"(?P<fecha>\d{1,2}-[A-Za-z]{3}-\d{4})"
+            r"\s+"
+            r"(?P<descripcion>.+?)"
+            r"\s+\$"
+            r"(?P<monto_original>[\d,]+\.\d{2})"
+            r"\s+\$"
+            r"(?P<saldo_pendiente>[\d,]+\.\d{2})"
+            r"\s+\$"
+            r"(?P<pago_requerido>[\d,]+\.\d{2})"
+            r"\s+"
+            r"(?P<numero>\d+)"
+            r"\s+de\s+"
+            r"(?P<plazos>\d+)"
+            r"\s+"
+            r"(?P<tasa>[\d.]+)%"
+        ),
+        re.IGNORECASE
+    )
+
+    for linea in texto.splitlines():
+
+        coincidencia = patron.search(
+            linea
+        )
+
+        if not coincidencia:
+            continue
+
+        def convertir_monto(
+            valor
+        ):
+
+            return float(
+                valor.replace(
+                    ",",
+                    ""
+                )
+            )
+
+        plan = {
+            "fecha_compra": coincidencia.group(
+                "fecha"
+            ),
+            "descripcion": coincidencia.group(
+                "descripcion"
+            ).strip(),
+            "monto_original": convertir_monto(
+                coincidencia.group(
+                    "monto_original"
+                )
+            ),
+            "saldo_pendiente": convertir_monto(
+                coincidencia.group(
+                    "saldo_pendiente"
+                )
+            ),
+            "cuota": convertir_monto(
+                coincidencia.group(
+                    "pago_requerido"
+                )
+            ),
+            "numero": int(
+                coincidencia.group(
+                    "numero"
+                )
+            ),
+            "plazos": int(
+                coincidencia.group(
+                    "plazos"
+                )
+            ),
+            "tasa": float(
+                coincidencia.group(
+                    "tasa"
+                )
+            ),
+        }
+
+                # ====================================================
+        # VALIDAR NÚMERO DE PARCIALIDAD
+        # ====================================================
+
+        monto_original = plan[
+            "monto_original"
+        ]
+
+        saldo_pendiente = plan[
+            "saldo_pendiente"
+        ]
+
+        cuota = plan[
+            "cuota"
+        ]
+
+        numero = plan[
+            "numero"
+        ]
+
+        plazos = plan[
+            "plazos"
+        ]
+
+        saldo_calculado = round(
+            monto_original
+            - (
+                cuota
+                * numero
+            ),
+            2
+        )
+
+        # Si el número extraído no produce
+        # el saldo que BBVA reporta,
+        # intentamos deducirlo matemáticamente.
+
+        if abs(
+            saldo_calculado
+            - saldo_pendiente
+        ) > 0.01:
+
+            numero_estimado = round(
+                (
+                    monto_original
+                    - saldo_pendiente
+                )
+                / cuota
+            )
+
+            if (
+                1
+                <= numero_estimado
+                <= plazos
+            ):
+
+                plan[
+                    "numero"
+                ] = numero_estimado
+
+        planes.append(
+            plan
+        )
+
+    return planes
 
 # ============================================================
 # MAIN
