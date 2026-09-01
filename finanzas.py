@@ -26,13 +26,30 @@ MESES = {
 
 
 NOMBRES_MESES = {
-    numero: nombre.capitalize()
-    for nombre, numero in MESES.items()
+    1: "Enero",
+    2: "Febrero",
+    3: "Marzo",
+    4: "Abril",
+    5: "Mayo",
+    6: "Junio",
+    7: "Julio",
+    8: "Agosto",
+    9: "Septiembre",
+    10: "Octubre",
+    11: "Noviembre",
+    12: "Diciembre",
 }
 
 
 # ============================================================
 # CONFIGURACIÓN DE TARJETAS
+# ============================================================
+#
+# Estas fechas sirven para PROYECTAR compras nuevas.
+#
+# IMPORTANTE:
+# Cuando importamos un estado PDF usamos las fechas REALES
+# encontradas en el documento, no estas fechas estimadas.
 # ============================================================
 
 CONFIGURACION_TARJETAS = {
@@ -60,77 +77,47 @@ CONFIGURACION_TARJETAS = {
 
 
 # ============================================================
-# ALIAS
+# ALIAS DE SUBCATEGORÍAS
 # ============================================================
 
 ALIAS_SUBCATEGORIAS = {
-
     "uber": "Uber/Didi",
-
     "didi": "Uber/Didi",
-
     "gmm": "Seguro de GMM",
-
     "seguro medico": "Seguro de GMM",
-
     "plan de retiro": "Plan de Retiro",
-
-    "comision": "Comisiones",
-
-    "comisiones": "Comisiones",
-
-    "sueldo": "Sueldo",
-
-    "bono": "Bonos",
-
-    "bonos": "Bonos",
-
-    "freelance": "Freelance",
 }
 
 
+# ============================================================
+# ALIAS DE CUENTAS
+# ============================================================
+
 ALIAS_CUENTAS = {
 
-    # BBVA PLATINUM
+    # BBVA Platinum
     "bbva platinum": "BBVA Platinum",
-
     "bbva plantinum": "BBVA Platinum",
-
     "plantinum": "BBVA Platinum",
-
     "platinum": "BBVA Platinum",
 
+    # Cuando hablamos simplemente de BBVA en gastos
+    "bbva": "BBVA Platinum",
 
-    # BBVA DÉBITO
+    # Débito
     "bbva debito": "BBVA Debito",
 
-
-    # CITIBANAMEX ORO
+    # Citibanamex Oro
     "citibanamex oro": "Citibanamex Oro",
-
     "banamex oro": "Citibanamex Oro",
 
-
-    # CITIBANAMEX COSTCO
+    # Citibanamex Costco
     "citibanamex costco": "Citibanamex Costco",
-
     "banamex costco": "Citibanamex Costco",
-
     "costco": "Citibanamex Costco",
 
-
-    # INVEX
+    # Invex
     "invex": "Invex",
-
-
-    # IMPORTANTE:
-    # Si simplemente dices "BBVA",
-    # para gastos y estados de cuenta
-    # interpretamos BBVA Platinum.
-    #
-    # bot.py se encarga de forzar
-    # los ingresos a BBVA Debito.
-    "bbva": "BBVA Platinum",
 }
 
 
@@ -139,81 +126,59 @@ ALIAS_CUENTAS = {
 # ============================================================
 
 PALABRAS_REGISTRO = [
-
     "registra",
-
     "registrar",
-
     "registe",
-
     "regista",
-
     "anota",
-
     "agrega",
-
     "añade",
 ]
 
 
+# ============================================================
+# PALABRAS A IGNORAR EN CONCEPTO
+# ============================================================
+
 PALABRAS_IGNORAR_CONCEPTO = {
 
     "registra",
-
     "registrar",
-
     "registe",
-
     "regista",
-
     "anota",
-
     "agrega",
-
     "añade",
 
     "un",
-
     "una",
 
     "gasto",
-
     "ingreso",
-
     "ingresos",
 
     "de",
-
     "con",
-
     "en",
-
     "por",
-
     "a",
 
     "pesos",
-
     "peso",
 
     "meses",
-
     "msi",
 
     "recibi",
-
     "cobre",
-
     "depositaron",
-
     "abonaron",
-
     "ingrese",
 }
 
 
 # ============================================================
-# TEXTO
+# NORMALIZAR TEXTO
 # ============================================================
 
 def normalizar_texto(
@@ -229,7 +194,7 @@ def normalizar_texto(
         texto
     )
 
-    return "".join(
+    texto = "".join(
         caracter
         for caracter in texto
         if unicodedata.category(
@@ -237,9 +202,11 @@ def normalizar_texto(
         ) != "Mn"
     )
 
+    return texto
+
 
 # ============================================================
-# MONTOS
+# CONVERTIR MONTO
 # ============================================================
 
 def convertir_monto(
@@ -262,89 +229,17 @@ def convertir_monto(
         .strip()
     )
 
+    if not monto_limpio:
+
+        return 0.0
+
     return float(
         monto_limpio
     )
 
 
-def detectar_monto(
-    mensaje
-):
-
-    texto = (
-        normalizar_texto(
-            mensaje
-        )
-        .replace("$", "")
-        .replace(",", "")
-    )
-
-    # Quitamos primero expresiones
-    # como:
-    #
-    # 6 meses
-    # 12 MSI
-    #
-    # para que no confundamos
-    # el plazo con el monto.
-
-    texto = re.sub(
-        r"\b\d+\s*(?:meses|msi)\b",
-        "",
-        texto
-    )
-
-    match = re.search(
-        r"\b\d+(?:\.\d+)?\b",
-        texto
-    )
-
-    if match is None:
-
-        return None
-
-    return float(
-        match.group()
-    )
-
-
 # ============================================================
-# MONTO DEL ESTADO DE CUENTA
-# ============================================================
-
-def detectar_monto_estado_cuenta(
-    mensaje
-):
-
-    texto = (
-        normalizar_texto(
-            mensaje
-        )
-        .replace("$", "")
-        .replace(",", "")
-    )
-
-    # Ejemplo:
-    #
-    # Registra estado de BBVA
-    # de septiembre por 8450
-
-    match = re.search(
-        r"\bpor\s+(\d+(?:\.\d+)?)\b",
-        texto
-    )
-
-    if match is None:
-
-        return None
-
-    return float(
-        match.group(1)
-    )
-
-
-# ============================================================
-# FECHAS
+# CONVERTIR FECHA
 # ============================================================
 
 def convertir_fecha(
@@ -362,12 +257,10 @@ def convertir_fecha(
         fecha
     ).strip()
 
-    formatos = (
-
+    formatos = [
         "%d/%m/%y",
-
         "%d/%m/%Y",
-    )
+    ]
 
     for formato in formatos:
 
@@ -383,8 +276,7 @@ def convertir_fecha(
             continue
 
     raise ValueError(
-        "Formato de fecha no reconocido: "
-        f"{fecha_texto}"
+        f"Formato de fecha no reconocido: {fecha_texto}"
     )
 
 
@@ -409,13 +301,8 @@ def obtener_fecha_compra_movimiento(
             fecha_compra
         )
 
-    # Compatibilidad histórica:
-    #
-    # Los movimientos antiguos no
-    # tienen Fecha de Compra.
-    #
-    # En esos casos usamos
-    # Fecha de Pago como referencia.
+    # Compatibilidad con movimientos históricos
+    # que todavía no tienen Fecha de Compra.
 
     return convertir_fecha(
         movimiento.get(
@@ -509,7 +396,7 @@ def calcular_fecha_corte(
         )
     )
 
-    if not configuracion:
+    if configuracion is None:
 
         return None
 
@@ -521,10 +408,6 @@ def calcular_fecha_corte(
 
         return None
 
-    # Si compramos antes
-    # o el mismo día del corte,
-    # entra en ese corte.
-
     if fecha_compra.day <= dia_corte:
 
         return crear_fecha_valida(
@@ -532,9 +415,6 @@ def calcular_fecha_corte(
             fecha_compra.month,
             dia_corte
         )
-
-    # Si compramos después,
-    # entra al corte del mes siguiente.
 
     siguiente_mes = sumar_meses(
         fecha_compra.replace(
@@ -565,7 +445,7 @@ def calcular_primera_fecha_pago(
         )
     )
 
-    if not configuracion:
+    if configuracion is None:
 
         return None
 
@@ -573,15 +453,16 @@ def calcular_primera_fecha_pago(
         "dia_pago"
     )
 
+    if dia_pago is None:
+
+        return None
+
     fecha_corte = calcular_fecha_corte(
         fecha_compra,
         cuenta
     )
 
-    if (
-        dia_pago is None
-        or fecha_corte is None
-    ):
+    if fecha_corte is None:
 
         return None
 
@@ -591,25 +472,14 @@ def calcular_primera_fecha_pago(
         dia_pago
     )
 
-    # Ejemplo:
-    #
-    # corte 9
-    # pago 29
-    #
-    # El pago cae dentro del
-    # mismo mes.
+    # Si el día de pago está después
+    # del corte, corresponde al mismo mes.
 
     if posible_pago > fecha_corte:
 
         return posible_pago
 
-    # Ejemplo:
-    #
-    # corte 12
-    # pago 3
-    #
-    # El pago cae en el
-    # siguiente mes.
+    # Si no, corresponde al siguiente mes.
 
     siguiente_mes = sumar_meses(
         fecha_corte.replace(
@@ -626,7 +496,14 @@ def calcular_primera_fecha_pago(
 
 
 # ============================================================
-# FECHAS DE UN ESTADO DE CUENTA
+# FECHAS DE ESTADO MANUAL
+# ============================================================
+#
+# Se usa cuando registramos manualmente desde Telegram:
+#
+# "Registra estado de BBVA de septiembre por 8450"
+#
+# Los PDFs importados NO dependen de esta función.
 # ============================================================
 
 def calcular_fechas_estado_cuenta(
@@ -641,7 +518,7 @@ def calcular_fechas_estado_cuenta(
         )
     )
 
-    if not configuracion:
+    if configuracion is None:
 
         raise ValueError(
             f"No existe configuración para {cuenta}."
@@ -661,8 +538,7 @@ def calcular_fechas_estado_cuenta(
     ):
 
         raise ValueError(
-            f"La configuración de {cuenta} "
-            "está incompleta."
+            f"La configuración de {cuenta} está incompleta."
         )
 
     fecha_corte = crear_fecha_valida(
@@ -703,7 +579,7 @@ def calcular_fechas_estado_cuenta(
 
 
 # ============================================================
-# INTENCIÓN
+# DETECTAR INTENCIÓN
 # ============================================================
 
 def detectar_intencion(
@@ -714,96 +590,74 @@ def detectar_intencion(
         mensaje
     )
 
-    # -------------------------
-    # CONSULTAS
-    # -------------------------
+    # Consultas claras
 
     palabras_consulta = [
-
         "cuanto",
-
         "cuantos",
-
         "total",
-
         "consulta",
-
         "consultar",
-
         "que tengo que pagar",
-
         "que debo",
     ]
 
-    if any(
-        palabra in mensaje_normalizado
-        for palabra in palabras_consulta
-    ):
+    for palabra in palabras_consulta:
 
-        return "consultar"
+        if palabra in mensaje_normalizado:
 
-    # -------------------------
-    # REGISTRO EXPLÍCITO
-    # -------------------------
+            return "consultar"
 
-    if any(
-        normalizar_texto(
+    # Registro explícito
+
+    for palabra in PALABRAS_REGISTRO:
+
+        if normalizar_texto(
             palabra
-        ) in mensaje_normalizado
+        ) in mensaje_normalizado:
 
-        for palabra in PALABRAS_REGISTRO
-    ):
+            return "registrar"
 
-        return "registrar"
+    # Registro natural de gastos:
+    # "Gasté 200 en tacos"
 
-    # -------------------------
-    # REGISTRO NATURAL
-    # DE GASTOS
-    # -------------------------
+    if "gaste" in mensaje_normalizado:
 
-    if (
-        "gaste" in mensaje_normalizado
-        and detectar_monto(
+        monto = detectar_monto(
             mensaje
-        ) is not None
-    ):
+        )
 
-        return "registrar"
+        if monto is not None:
 
-    # -------------------------
-    # REGISTRO NATURAL
-    # DE INGRESOS
-    # -------------------------
+            return "registrar"
 
-    palabras_ingreso_registro = [
+    # Registro natural de ingresos
 
+    palabras_ingreso = [
         "recibi",
-
         "cobre",
-
         "depositaron",
-
         "abonaron",
-
         "ingrese",
     ]
 
-    if any(
-        palabra in mensaje_normalizado
-        for palabra in palabras_ingreso_registro
-    ):
+    for palabra in palabras_ingreso:
 
-        if detectar_monto(
-            mensaje
-        ) is not None:
+        if palabra in mensaje_normalizado:
 
-            return "registrar"
+            monto = detectar_monto(
+                mensaje
+            )
+
+            if monto is not None:
+
+                return "registrar"
 
     return "consultar"
 
 
 # ============================================================
-# TIPO DE MOVIMIENTO
+# DETECTAR TIPO DE MOVIMIENTO
 # ============================================================
 
 def detectar_tipo_movimiento(
@@ -815,40 +669,109 @@ def detectar_tipo_movimiento(
     )
 
     palabras_ingreso = [
-
         "ingreso",
-
         "ingresos",
-
         "recibi",
-
         "recibiste",
-
         "cobre",
-
         "cobrado",
-
         "depositaron",
-
         "abonaron",
-
         "ingrese",
-
         "ingresado",
     ]
 
-    if any(
-        palabra in mensaje_normalizado
-        for palabra in palabras_ingreso
-    ):
+    for palabra in palabras_ingreso:
 
-        return "Ingreso"
+        if palabra in mensaje_normalizado:
+
+            return "Ingreso"
 
     return "Gasto"
 
 
 # ============================================================
-# PLAZOS
+# DETECTAR MONTO
+# ============================================================
+
+def detectar_monto(
+    mensaje
+):
+
+    texto = normalizar_texto(
+        mensaje
+    )
+
+    texto = (
+        texto
+        .replace("$", "")
+        .replace(",", "")
+    )
+
+    # Evitamos interpretar los plazos como monto.
+    #
+    # "1200 a 6 meses"
+    # debe devolver 1200, no 6.
+
+    texto = re.sub(
+        r"\b\d+\s*(?:meses|msi)\b",
+        "",
+        texto
+    )
+
+    match = re.search(
+        r"\b\d+(?:\.\d+)?\b",
+        texto
+    )
+
+    if match is None:
+
+        return None
+
+    return float(
+        match.group()
+    )
+
+
+# ============================================================
+# MONTO DEL ESTADO DE CUENTA
+# ============================================================
+
+def detectar_monto_estado_cuenta(
+    mensaje
+):
+
+    texto = normalizar_texto(
+        mensaje
+    )
+
+    texto = (
+        texto
+        .replace("$", "")
+        .replace(",", "")
+    )
+
+    # Ejemplo:
+    #
+    # Registra estado de BBVA
+    # de septiembre por 8450
+
+    match = re.search(
+        r"\bpor\s+(\d+(?:\.\d+)?)\b",
+        texto
+    )
+
+    if match is None:
+
+        return None
+
+    return float(
+        match.group(1)
+    )
+
+
+# ============================================================
+# DETECTAR PLAZOS
 # ============================================================
 
 def detectar_plazos(
@@ -871,6 +794,25 @@ def detectar_plazos(
     return int(
         match.group(1)
     )
+
+
+# ============================================================
+# DETECTAR MES
+# ============================================================
+
+def detectar_mes(
+    mensaje
+):
+
+    meses = detectar_meses(
+        mensaje
+    )
+
+    if meses:
+
+        return meses[0]
+
+    return None
 
 
 # ============================================================
@@ -910,27 +852,6 @@ def detectar_meses(
                 )
 
     return meses_encontrados
-
-
-# ============================================================
-# DETECTAR UN MES
-# ============================================================
-
-def detectar_mes(
-    mensaje
-):
-
-    meses = detectar_meses(
-        mensaje
-    )
-
-    if meses:
-
-        return meses[
-            0
-        ]
-
-    return None
 
 
 # ============================================================
@@ -989,7 +910,7 @@ def detectar_proximos_meses(
 
 
 # ============================================================
-# AÑO
+# DETECTAR AÑO
 # ============================================================
 
 def detectar_anio(
@@ -1015,11 +936,7 @@ def detectar_anio(
                 palabra
             )
 
-            if (
-                1900
-                <= anio
-                <= 2100
-            ):
+            if 1900 <= anio <= 2100:
 
                 return anio
 
@@ -1051,7 +968,7 @@ def detectar_periodo_relativo(
 
 
 # ============================================================
-# SUBCATEGORÍA
+# DETECTAR SUBCATEGORÍA
 # ============================================================
 
 def detectar_subcategoria(
@@ -1063,7 +980,7 @@ def detectar_subcategoria(
         mensaje
     )
 
-    # Primero buscamos alias.
+    # Primero alias
 
     for alias in sorted(
         ALIAS_SUBCATEGORIAS,
@@ -1079,9 +996,7 @@ def detectar_subcategoria(
                 alias
             ]
 
-    # Después usamos las
-    # subcategorías existentes
-    # en Google Sheets.
+    # Después categorías existentes en Sheets
 
     for movimiento in movimientos:
 
@@ -1092,11 +1007,15 @@ def detectar_subcategoria(
             )
         ).strip()
 
+        if not subcategoria:
+
+            continue
+
         if (
-            subcategoria
-            and normalizar_texto(
+            normalizar_texto(
                 subcategoria
-            ) in mensaje_normalizado
+            )
+            in mensaje_normalizado
         ):
 
             return subcategoria
@@ -1105,7 +1024,7 @@ def detectar_subcategoria(
 
 
 # ============================================================
-# CUENTA
+# DETECTAR CUENTA
 # ============================================================
 
 def detectar_cuenta(
@@ -1117,10 +1036,7 @@ def detectar_cuenta(
         mensaje
     )
 
-    # Alias conocidos.
-    #
-    # Revisamos primero los
-    # más largos.
+    # Alias largos primero
 
     for alias in sorted(
         ALIAS_CUENTAS,
@@ -1136,37 +1052,44 @@ def detectar_cuenta(
                 alias
             ]
 
-    # Después buscamos cuentas
-    # históricas en Sheets.
+    # Cuentas existentes en Sheets
 
-    cuentas = {
+    cuentas_existentes = []
 
-        str(
+    for movimiento in movimientos:
+
+        cuenta = str(
             movimiento.get(
                 "Cuenta",
                 ""
             )
         ).strip()
 
-        for movimiento in movimientos
+        if cuenta:
 
-        if str(
-            movimiento.get(
-                "Cuenta",
-                ""
+            cuentas_existentes.append(
+                cuenta
             )
-        ).strip()
-    }
 
-    for cuenta in sorted(
-        cuentas,
+    cuentas_existentes = list(
+        set(
+            cuentas_existentes
+        )
+    )
+
+    cuentas_existentes.sort(
         key=len,
         reverse=True
-    ):
+    )
 
-        if normalizar_texto(
-            cuenta
-        ) in mensaje_normalizado:
+    for cuenta in cuentas_existentes:
+
+        if (
+            normalizar_texto(
+                cuenta
+            )
+            in mensaje_normalizado
+        ):
 
             return cuenta
 
@@ -1174,7 +1097,7 @@ def detectar_cuenta(
 
 
 # ============================================================
-# CONCEPTO
+# DETECTAR CONCEPTO
 # ============================================================
 
 def detectar_concepto(
@@ -1183,41 +1106,37 @@ def detectar_concepto(
     subcategoria=None
 ):
 
+    texto = normalizar_texto(
+        mensaje
+    )
+
     texto = (
-        normalizar_texto(
-            mensaje
-        )
+        texto
         .replace("$", "")
         .replace(",", "")
     )
 
     palabras = texto.split()
 
-    palabras_cuenta = (
+    palabras_cuenta = set()
 
-        set(
+    if cuenta is not None:
+
+        palabras_cuenta = set(
             normalizar_texto(
                 cuenta
             ).split()
         )
 
-        if cuenta
+    palabras_subcategoria = set()
 
-        else set()
-    )
+    if subcategoria is not None:
 
-    palabras_subcategoria = (
-
-        set(
+        palabras_subcategoria = set(
             normalizar_texto(
                 subcategoria
             ).split()
         )
-
-        if subcategoria
-
-        else set()
-    )
 
     concepto_palabras = []
 
@@ -1227,15 +1146,9 @@ def detectar_concepto(
             "¿?¡!.,"
         )
 
-        if (
-            palabra
-            in PALABRAS_IGNORAR_CONCEPTO
-        ):
+        if palabra in PALABRAS_IGNORAR_CONCEPTO:
 
             continue
-
-        # Quitamos montos,
-        # plazos y años.
 
         try:
 
@@ -1273,7 +1186,7 @@ def detectar_concepto(
 
 
 # ============================================================
-# STATUS
+# DETECTAR STATUS
 # ============================================================
 
 def detectar_status(
@@ -1285,58 +1198,42 @@ def detectar_status(
     )
 
     palabras_pendiente = [
-
         "pendiente",
-
         "pendientes",
-
         "debo",
-
         "deuda",
-
         "por pagar",
-
         "pagar",
-
         "comprometido",
-
         "comprometidos",
-
         "comprometida",
-
         "comprometidas",
     ]
 
-    if any(
-        palabra in mensaje_normalizado
-        for palabra in palabras_pendiente
-    ):
+    for palabra in palabras_pendiente:
 
-        return "Pendiente"
+        if palabra in mensaje_normalizado:
+
+            return "Pendiente"
 
     palabras_pagado = [
-
         "pagado",
-
         "pagados",
-
         "pagada",
-
         "pagadas",
     ]
 
-    if any(
-        palabra in mensaje_normalizado
-        for palabra in palabras_pagado
-    ):
+    for palabra in palabras_pagado:
 
-        return "Pagado"
+        if palabra in mensaje_normalizado:
+
+            return "Pagado"
 
     return None
 
 
 # ============================================================
-# TIPO DE PAGO
+# DETECTAR TIPO DE PAGO
 # ============================================================
 
 def detectar_tipo_pago(
@@ -1347,10 +1244,8 @@ def detectar_tipo_pago(
         mensaje
     )
 
-    # "Próximos 3 meses"
-    # habla de un periodo.
-    #
-    # NO significa MSI.
+    # "Próximos 3 meses" representa un periodo,
+    # no una compra a meses.
 
     if re.search(
         r"\bproximos?\s+\d+\s+meses\b",
@@ -1360,26 +1255,17 @@ def detectar_tipo_pago(
         return None
 
     palabras_meses = [
-
         "compras a meses",
-
         "mensualidad",
-
         "mensualidades",
-
         "msi",
     ]
 
-    if any(
-        palabra in mensaje_normalizado
-        for palabra in palabras_meses
-    ):
+    for palabra in palabras_meses:
 
-        return "Meses"
+        if palabra in mensaje_normalizado:
 
-    # Registro natural:
-    #
-    # "a 6 meses"
+            return "Meses"
 
     if re.search(
         r"\b\d+\s+meses\b",
@@ -1396,7 +1282,7 @@ def detectar_tipo_pago(
 
 
 # ============================================================
-# PARSER DE ESTADOS DE CUENTA
+# INTERPRETAR REGISTRO DE ESTADO DE CUENTA
 # ============================================================
 
 def interpretar_estado_cuenta(
@@ -1408,21 +1294,20 @@ def interpretar_estado_cuenta(
         mensaje
     )
 
-    # Solo entra aquí si
-    # realmente dice "estado".
-
     if "estado" not in mensaje_normalizado:
 
         return None
 
-    es_registro = any(
+    es_registro = False
 
-        normalizar_texto(
+    for palabra in PALABRAS_REGISTRO:
+
+        if normalizar_texto(
             palabra
-        ) in mensaje_normalizado
+        ) in mensaje_normalizado:
 
-        for palabra in PALABRAS_REGISTRO
-    )
+            es_registro = True
+            break
 
     if not es_registro:
 
@@ -1441,10 +1326,6 @@ def interpretar_estado_cuenta(
         mensaje
     )
 
-    monto = detectar_monto_estado_cuenta(
-        mensaje
-    )
-
     if (
         mes is not None
         and anio is None
@@ -1452,6 +1333,10 @@ def interpretar_estado_cuenta(
 
         anio = datetime.now().year
 
+    monto = detectar_monto_estado_cuenta(
+        mensaje
+    )
+
     return {
         "cuenta": cuenta,
         "mes": mes,
@@ -1461,670 +1346,8 @@ def interpretar_estado_cuenta(
 
 
 # ============================================================
-# PARSER GENERAL
+# INTERPRETAR CONSULTA DE ESTADO DE CUENTA
 # ============================================================
-
-def interpretar_mensaje(
-    mensaje,
-    movimientos
-):
-
-    intencion = detectar_intencion(
-        mensaje
-    )
-
-    tipo_movimiento = detectar_tipo_movimiento(
-        mensaje
-    )
-
-    subcategoria = detectar_subcategoria(
-        mensaje,
-        movimientos
-    )
-
-    cuenta = detectar_cuenta(
-        mensaje,
-        movimientos
-    )
-
-    status = detectar_status(
-        mensaje
-    )
-
-    tipo_pago = detectar_tipo_pago(
-        mensaje
-    )
-
-    # Valores por defecto.
-
-    mes = None
-
-    meses = []
-
-    periodos = []
-
-    anio = None
-
-    monto = None
-
-    concepto = ""
-
-    plazos = 1
-
-
-    # ========================================================
-    # REGISTRAR
-    # ========================================================
-
-    if intencion == "registrar":
-
-        monto = detectar_monto(
-            mensaje
-        )
-
-        plazos = detectar_plazos(
-            mensaje
-        )
-
-        concepto = detectar_concepto(
-            mensaje,
-            cuenta,
-            subcategoria
-        )
-
-        # Si estamos registrando
-        # un ingreso y ya detectamos
-        # "Comisiones", "Sueldo", etc.,
-        # usamos esa categoría como
-        # descripción si no encontramos
-        # otro concepto.
-
-        if (
-            tipo_movimiento == "Ingreso"
-            and not concepto
-            and subcategoria is not None
-        ):
-
-            concepto = subcategoria
-
-
-    # ========================================================
-    # CONSULTAR
-    # ========================================================
-
-    else:
-
-        # -------------------------
-        # PRÓXIMOS N MESES
-        # -------------------------
-
-        periodos = detectar_proximos_meses(
-            mensaje
-        )
-
-        # -------------------------
-        # PERIODO RELATIVO
-        # -------------------------
-
-        periodo_relativo = (
-            detectar_periodo_relativo(
-                mensaje
-            )
-        )
-
-        # -------------------------
-        # MESES ESCRITOS
-        # -------------------------
-
-        meses = detectar_meses(
-            mensaje
-        )
-
-        anio = detectar_anio(
-            mensaje
-        )
-
-        # Prioridad 1:
-        #
-        # "próximos 3 meses"
-
-        if periodos:
-
-            mes = None
-
-            meses = []
-
-            anio = None
-
-
-        # Prioridad 2:
-        #
-        # "este mes"
-
-        elif periodo_relativo is not None:
-
-            mes = periodo_relativo[
-                "mes"
-            ]
-
-            meses = [
-                mes
-            ]
-
-            anio = periodo_relativo[
-                "anio"
-            ]
-
-
-        # -------------------------
-        # UN MES EXPLÍCITO
-        # -------------------------
-
-        elif len(
-            meses
-        ) == 1:
-
-            mes = meses[
-                0
-            ]
-
-            if anio is None:
-
-                anio = datetime.now().year
-
-
-        # -------------------------
-        # VARIOS MESES
-        # -------------------------
-
-        elif len(
-            meses
-        ) > 1:
-
-            mes = None
-
-            if anio is None:
-
-                anio = datetime.now().year
-
-
-    return {
-
-        "intencion": intencion,
-
-        "tipo_movimiento": tipo_movimiento,
-
-        "mes": mes,
-
-        "meses": meses,
-
-        "periodos": periodos,
-
-        "anio": anio,
-
-        "subcategoria": subcategoria,
-
-        "cuenta": cuenta,
-
-        "monto": monto,
-
-        "concepto": concepto,
-
-        "plazos": plazos,
-
-        "status": status,
-
-        "tipo_pago": tipo_pago,
-    }
-
-
-# ============================================================
-# FILTRAR MOVIMIENTOS
-# ============================================================
-
-def obtener_movimientos_filtrados(
-    movimientos,
-    mes=None,
-    anio=None,
-    subcategoria=None,
-    cuenta=None,
-    status=None,
-    tipo_pago=None,
-    tipo_movimiento="Gasto"
-):
-
-    resultados = []
-
-    for movimiento in movimientos:
-
-
-        # -------------------------
-        # TIPO DE MOVIMIENTO
-        # -------------------------
-
-        valor_tipo = normalizar_texto(
-            movimiento.get(
-                "Tipo de Movimiento",
-                ""
-            )
-        )
-
-        if (
-            valor_tipo
-            != normalizar_texto(
-                tipo_movimiento
-            )
-        ):
-
-            continue
-
-
-        # -------------------------
-        # FECHA DE PAGO
-        # -------------------------
-
-        if (
-            mes is not None
-            or anio is not None
-        ):
-
-            try:
-
-                fecha = convertir_fecha(
-                    movimiento.get(
-                        "Fecha de Pago",
-                        ""
-                    )
-                )
-
-            except ValueError:
-
-                continue
-
-            if (
-                mes is not None
-                and fecha.month != mes
-            ):
-
-                continue
-
-            if (
-                anio is not None
-                and fecha.year != anio
-            ):
-
-                continue
-
-
-        # -------------------------
-        # SUBCATEGORÍA
-        # -------------------------
-
-        if subcategoria is not None:
-
-            valor = normalizar_texto(
-                movimiento.get(
-                    "Subcategoria",
-                    ""
-                )
-            )
-
-            if (
-                valor
-                != normalizar_texto(
-                    subcategoria
-                )
-            ):
-
-                continue
-
-
-        # -------------------------
-        # CUENTA
-        # -------------------------
-
-        if cuenta is not None:
-
-            valor = normalizar_texto(
-                movimiento.get(
-                    "Cuenta",
-                    ""
-                )
-            )
-
-            if (
-                valor
-                != normalizar_texto(
-                    cuenta
-                )
-            ):
-
-                continue
-
-
-        # -------------------------
-        # STATUS
-        # -------------------------
-
-        if status is not None:
-
-            valor = normalizar_texto(
-                movimiento.get(
-                    "Status",
-                    ""
-                )
-            )
-
-            if (
-                valor
-                != normalizar_texto(
-                    status
-                )
-            ):
-
-                continue
-
-
-        # -------------------------
-        # TIPO DE PAGO
-        # -------------------------
-
-        if tipo_pago is not None:
-
-            valor = normalizar_texto(
-                movimiento.get(
-                    "Tipo de Pago",
-                    ""
-                )
-            )
-
-            if (
-                valor
-                != normalizar_texto(
-                    tipo_pago
-                )
-            ):
-
-                continue
-
-
-        resultados.append(
-            movimiento
-        )
-
-
-    return resultados
-
-
-# ============================================================
-# CALCULAR TOTAL
-# ============================================================
-
-def calcular_total(
-    movimientos,
-    mes=None,
-    anio=None,
-    subcategoria=None,
-    cuenta=None,
-    status=None,
-    tipo_pago=None,
-    tipo_movimiento="Gasto"
-):
-
-    filtrados = obtener_movimientos_filtrados(
-
-        movimientos,
-
-        mes=mes,
-
-        anio=anio,
-
-        subcategoria=subcategoria,
-
-        cuenta=cuenta,
-
-        status=status,
-
-        tipo_pago=tipo_pago,
-
-        tipo_movimiento=tipo_movimiento
-    )
-
-
-    total = 0.0
-
-
-    for movimiento in filtrados:
-
-        try:
-
-            total += convertir_monto(
-                movimiento.get(
-                    "Monto de Compra",
-                    0
-                )
-            )
-
-        except (
-            ValueError,
-            TypeError
-        ):
-
-            continue
-
-
-    return round(
-        total,
-        2
-    )
-
-
-# ============================================================
-# TOTAL POR FECHA EXACTA DE PAGO
-# ============================================================
-
-def calcular_total_fecha_pago(
-    movimientos,
-    cuenta,
-    fecha_pago
-):
-
-    # Esta función se usa para
-    # la conciliación bancaria.
-    #
-    # Ejemplo:
-    #
-    # Estado BBVA septiembre
-    # Fecha límite: 03/10/2026
-    #
-    # Buscamos todos los movimientos
-    # de BBVA cuya Fecha de Pago sea
-    # exactamente 03/10/2026.
-
-    if isinstance(
-        fecha_pago,
-        datetime
-    ):
-
-        fecha_objetivo = fecha_pago
-
-    else:
-
-        fecha_objetivo = convertir_fecha(
-            fecha_pago
-        )
-
-
-    total = 0.0
-
-
-    for movimiento in movimientos:
-
-
-        # -------------------------
-        # SOLO GASTOS
-        # -------------------------
-
-        tipo_movimiento = normalizar_texto(
-            movimiento.get(
-                "Tipo de Movimiento",
-                ""
-            )
-        )
-
-        if tipo_movimiento != "gasto":
-
-            continue
-
-
-        # -------------------------
-        # MISMA CUENTA
-        # -------------------------
-
-        cuenta_movimiento = normalizar_texto(
-            movimiento.get(
-                "Cuenta",
-                ""
-            )
-        )
-
-        if (
-            cuenta_movimiento
-            != normalizar_texto(
-                cuenta
-            )
-        ):
-
-            continue
-
-
-        # -------------------------
-        # MISMA FECHA DE PAGO
-        # -------------------------
-
-        try:
-
-            fecha_movimiento = convertir_fecha(
-                movimiento.get(
-                    "Fecha de Pago",
-                    ""
-                )
-            )
-
-        except ValueError:
-
-            continue
-
-
-        if (
-            fecha_movimiento.date()
-            != fecha_objetivo.date()
-        ):
-
-            continue
-
-
-        # -------------------------
-        # SUMAR MONTO
-        # -------------------------
-
-        try:
-
-            monto = convertir_monto(
-                movimiento.get(
-                    "Monto de Compra",
-                    0
-                )
-            )
-
-        except (
-            ValueError,
-            TypeError
-        ):
-
-            continue
-
-
-        total += monto
-
-
-    return round(
-        total,
-        2
-    )
-
-def obtener_movimientos_fecha_pago(
-    movimientos,
-    cuenta,
-    fecha_pago
-):
-
-    if isinstance(
-        fecha_pago,
-        datetime
-    ):
-
-        fecha_objetivo = fecha_pago
-
-    else:
-
-        fecha_objetivo = convertir_fecha(
-            fecha_pago
-        )
-
-    resultados = []
-
-    for movimiento in movimientos:
-
-        tipo_movimiento = normalizar_texto(
-            movimiento.get(
-                "Tipo de Movimiento",
-                ""
-            )
-        )
-
-        if tipo_movimiento != "gasto":
-            continue
-
-        cuenta_movimiento = normalizar_texto(
-            movimiento.get(
-                "Cuenta",
-                ""
-            )
-        )
-
-        if cuenta_movimiento != normalizar_texto(
-            cuenta
-        ):
-
-            continue
-
-        try:
-
-            fecha_movimiento = convertir_fecha(
-                movimiento.get(
-                    "Fecha de Pago",
-                    ""
-                )
-            )
-
-        except ValueError:
-
-            continue
-
-        if (
-            fecha_movimiento.date()
-            != fecha_objetivo.date()
-        ):
-
-            continue
-
-        resultados.append(
-            movimiento
-        )
-
-    return resultados
-
 
 def interpretar_consulta_estado_cuenta(
     mensaje,
@@ -2139,13 +1362,16 @@ def interpretar_consulta_estado_cuenta(
 
         return None
 
-    es_registro = any(
-        normalizar_texto(
-            palabra
-        ) in mensaje_normalizado
+    es_registro = False
 
-        for palabra in PALABRAS_REGISTRO
-    )
+    for palabra in PALABRAS_REGISTRO:
+
+        if normalizar_texto(
+            palabra
+        ) in mensaje_normalizado:
+
+            es_registro = True
+            break
 
     if es_registro:
 
@@ -2178,12 +1404,24 @@ def interpretar_consulta_estado_cuenta(
     }
 
 
+# ============================================================
+# BUSCAR ESTADO DE CUENTA
+# ============================================================
+
 def buscar_estado_cuenta(
     estados_cuenta,
     cuenta,
     mes,
     anio
 ):
+
+    if (
+        cuenta is None
+        or mes is None
+        or anio is None
+    ):
+
+        return None
 
     periodo_buscado = normalizar_texto(
         (
@@ -2192,10 +1430,10 @@ def buscar_estado_cuenta(
         )
     )
 
-    # Lo recorremos al revés.
-    # Si accidentalmente registramos
-    # dos veces el mismo estado,
-    # usamos el más reciente.
+    # Recorremos al revés.
+    # Si existe más de una importación,
+    # usamos la más reciente.
+
     for estado in reversed(
         estados_cuenta
     ):
@@ -2229,6 +1467,626 @@ def buscar_estado_cuenta(
 
 
 # ============================================================
+# INTERPRETAR MENSAJE GENERAL
+# ============================================================
+
+def interpretar_mensaje(
+    mensaje,
+    movimientos
+):
+
+    intencion = detectar_intencion(
+        mensaje
+    )
+
+    tipo_movimiento = detectar_tipo_movimiento(
+        mensaje
+    )
+
+    subcategoria = detectar_subcategoria(
+        mensaje,
+        movimientos
+    )
+
+    cuenta = detectar_cuenta(
+        mensaje,
+        movimientos
+    )
+
+    status = detectar_status(
+        mensaje
+    )
+
+    tipo_pago = detectar_tipo_pago(
+        mensaje
+    )
+
+    mes = None
+    meses = []
+    periodos = []
+
+    anio = None
+    monto = None
+    concepto = ""
+    plazos = 1
+
+    # ========================================================
+    # REGISTRAR
+    # ========================================================
+
+    if intencion == "registrar":
+
+        monto = detectar_monto(
+            mensaje
+        )
+
+        plazos = detectar_plazos(
+            mensaje
+        )
+
+        concepto = detectar_concepto(
+            mensaje,
+            cuenta,
+            subcategoria
+        )
+
+        if (
+            tipo_movimiento == "Ingreso"
+            and not concepto
+            and subcategoria is not None
+        ):
+
+            concepto = subcategoria
+
+    # ========================================================
+    # CONSULTAR
+    # ========================================================
+
+    else:
+
+        periodos = detectar_proximos_meses(
+            mensaje
+        )
+
+        periodo_relativo = detectar_periodo_relativo(
+            mensaje
+        )
+
+        meses = detectar_meses(
+            mensaje
+        )
+
+        anio = detectar_anio(
+            mensaje
+        )
+
+        # Mayor prioridad:
+        # próximos N meses
+
+        if periodos:
+
+            mes = None
+            meses = []
+            anio = None
+
+        # Después:
+        # este mes
+
+        elif periodo_relativo is not None:
+
+            mes = periodo_relativo[
+                "mes"
+            ]
+
+            meses = [
+                mes
+            ]
+
+            anio = periodo_relativo[
+                "anio"
+            ]
+
+        # Un mes escrito
+
+        elif len(
+            meses
+        ) == 1:
+
+            mes = meses[
+                0
+            ]
+
+            if anio is None:
+
+                anio = datetime.now().year
+
+        # Varios meses escritos
+
+        elif len(
+            meses
+        ) > 1:
+
+            mes = None
+
+            if anio is None:
+
+                anio = datetime.now().year
+
+    return {
+        "intencion": intencion,
+        "tipo_movimiento": tipo_movimiento,
+        "mes": mes,
+        "meses": meses,
+        "periodos": periodos,
+        "anio": anio,
+        "subcategoria": subcategoria,
+        "cuenta": cuenta,
+        "monto": monto,
+        "concepto": concepto,
+        "plazos": plazos,
+        "status": status,
+        "tipo_pago": tipo_pago,
+    }
+
+
+# ============================================================
+# FILTRAR MOVIMIENTOS
+# ============================================================
+
+def obtener_movimientos_filtrados(
+    movimientos,
+    mes=None,
+    anio=None,
+    subcategoria=None,
+    cuenta=None,
+    status=None,
+    tipo_pago=None,
+    tipo_movimiento="Gasto"
+):
+
+    resultados = []
+
+    for movimiento in movimientos:
+
+        # ====================================================
+        # TIPO DE MOVIMIENTO
+        # ====================================================
+
+        valor_tipo = normalizar_texto(
+            movimiento.get(
+                "Tipo de Movimiento",
+                ""
+            )
+        )
+
+        if (
+            valor_tipo
+            != normalizar_texto(
+                tipo_movimiento
+            )
+        ):
+
+            continue
+
+        # ====================================================
+        # FECHA DE PAGO
+        # ====================================================
+
+        if (
+            mes is not None
+            or anio is not None
+        ):
+
+            try:
+
+                fecha = convertir_fecha(
+                    movimiento.get(
+                        "Fecha de Pago",
+                        ""
+                    )
+                )
+
+            except ValueError:
+
+                continue
+
+            if (
+                mes is not None
+                and fecha.month != mes
+            ):
+
+                continue
+
+            if (
+                anio is not None
+                and fecha.year != anio
+            ):
+
+                continue
+
+        # ====================================================
+        # SUBCATEGORÍA
+        # ====================================================
+
+        if subcategoria is not None:
+
+            valor_subcategoria = normalizar_texto(
+                movimiento.get(
+                    "Subcategoria",
+                    ""
+                )
+            )
+
+            if (
+                valor_subcategoria
+                != normalizar_texto(
+                    subcategoria
+                )
+            ):
+
+                continue
+
+        # ====================================================
+        # CUENTA
+        # ====================================================
+
+        if cuenta is not None:
+
+            valor_cuenta = normalizar_texto(
+                movimiento.get(
+                    "Cuenta",
+                    ""
+                )
+            )
+
+            if (
+                valor_cuenta
+                != normalizar_texto(
+                    cuenta
+                )
+            ):
+
+                continue
+
+        # ====================================================
+        # STATUS
+        # ====================================================
+
+        if status is not None:
+
+            valor_status = normalizar_texto(
+                movimiento.get(
+                    "Status",
+                    ""
+                )
+            )
+
+            if (
+                valor_status
+                != normalizar_texto(
+                    status
+                )
+            ):
+
+                continue
+
+        # ====================================================
+        # TIPO DE PAGO
+        # ====================================================
+
+        if tipo_pago is not None:
+
+            valor_tipo_pago = normalizar_texto(
+                movimiento.get(
+                    "Tipo de Pago",
+                    ""
+                )
+            )
+
+            if (
+                valor_tipo_pago
+                != normalizar_texto(
+                    tipo_pago
+                )
+            ):
+
+                continue
+
+        resultados.append(
+            movimiento
+        )
+
+    return resultados
+
+
+# ============================================================
+# CALCULAR TOTAL
+# ============================================================
+
+def calcular_total(
+    movimientos,
+    mes=None,
+    anio=None,
+    subcategoria=None,
+    cuenta=None,
+    status=None,
+    tipo_pago=None,
+    tipo_movimiento="Gasto"
+):
+
+    movimientos_filtrados = (
+        obtener_movimientos_filtrados(
+            movimientos,
+            mes=mes,
+            anio=anio,
+            subcategoria=subcategoria,
+            cuenta=cuenta,
+            status=status,
+            tipo_pago=tipo_pago,
+            tipo_movimiento=tipo_movimiento
+        )
+    )
+
+    total = 0.0
+
+    for movimiento in movimientos_filtrados:
+
+        try:
+
+            monto = convertir_monto(
+                movimiento.get(
+                    "Monto de Compra",
+                    0
+                )
+            )
+
+        except (
+            ValueError,
+            TypeError
+        ):
+
+            continue
+
+        total += monto
+
+    return round(
+        total,
+        2
+    )
+
+
+# ============================================================
+# TOTAL PARA CONCILIACIÓN
+# ============================================================
+#
+# IMPORTANTE:
+#
+# Ya NO exigimos que el día de pago coincida exactamente.
+#
+# Ejemplo:
+#
+# PDF Invex:
+#   Fecha límite: 01/09/2026
+#
+# Histórico:
+#   Fecha Pago: 02/09/2026
+#
+# Ambos pertenecen al mismo ciclo financiero.
+#
+# Por eso conciliamos usando:
+#
+#   Cuenta + Mes + Año
+#
+# ============================================================
+
+def calcular_total_fecha_pago(
+    movimientos,
+    cuenta,
+    fecha_pago
+):
+
+    if isinstance(
+        fecha_pago,
+        datetime
+    ):
+
+        fecha_objetivo = fecha_pago
+
+    else:
+
+        fecha_objetivo = convertir_fecha(
+            fecha_pago
+        )
+
+    total = 0.0
+
+    for movimiento in movimientos:
+
+        # Solo gastos
+
+        tipo_movimiento = normalizar_texto(
+            movimiento.get(
+                "Tipo de Movimiento",
+                ""
+            )
+        )
+
+        if tipo_movimiento != "gasto":
+
+            continue
+
+        # Misma cuenta
+
+        cuenta_movimiento = normalizar_texto(
+            movimiento.get(
+                "Cuenta",
+                ""
+            )
+        )
+
+        if (
+            cuenta_movimiento
+            != normalizar_texto(
+                cuenta
+            )
+        ):
+
+            continue
+
+        # Fecha del movimiento
+
+        try:
+
+            fecha_movimiento = convertir_fecha(
+                movimiento.get(
+                    "Fecha de Pago",
+                    ""
+                )
+            )
+
+        except ValueError:
+
+            continue
+
+        # ====================================================
+        # MISMO MES Y AÑO
+        # ====================================================
+
+        if (
+            fecha_movimiento.month
+            != fecha_objetivo.month
+        ):
+
+            continue
+
+        if (
+            fecha_movimiento.year
+            != fecha_objetivo.year
+        ):
+
+            continue
+
+        # Sumar
+
+        try:
+
+            monto = convertir_monto(
+                movimiento.get(
+                    "Monto de Compra",
+                    0
+                )
+            )
+
+        except (
+            ValueError,
+            TypeError
+        ):
+
+            continue
+
+        total += monto
+
+    return round(
+        total,
+        2
+    )
+
+
+# ============================================================
+# MOVIMIENTOS DEL ESTADO PARA CONCILIACIÓN
+# ============================================================
+
+def obtener_movimientos_fecha_pago(
+    movimientos,
+    cuenta,
+    fecha_pago
+):
+
+    if isinstance(
+        fecha_pago,
+        datetime
+    ):
+
+        fecha_objetivo = fecha_pago
+
+    else:
+
+        fecha_objetivo = convertir_fecha(
+            fecha_pago
+        )
+
+    resultados = []
+
+    for movimiento in movimientos:
+
+        # Solo gastos
+
+        tipo_movimiento = normalizar_texto(
+            movimiento.get(
+                "Tipo de Movimiento",
+                ""
+            )
+        )
+
+        if tipo_movimiento != "gasto":
+
+            continue
+
+        # Misma cuenta
+
+        cuenta_movimiento = normalizar_texto(
+            movimiento.get(
+                "Cuenta",
+                ""
+            )
+        )
+
+        if (
+            cuenta_movimiento
+            != normalizar_texto(
+                cuenta
+            )
+        ):
+
+            continue
+
+        try:
+
+            fecha_movimiento = convertir_fecha(
+                movimiento.get(
+                    "Fecha de Pago",
+                    ""
+                )
+            )
+
+        except ValueError:
+
+            continue
+
+        # Conciliamos por MES + AÑO
+
+        if (
+            fecha_movimiento.month
+            != fecha_objetivo.month
+        ):
+
+            continue
+
+        if (
+            fecha_movimiento.year
+            != fecha_objetivo.year
+        ):
+
+            continue
+
+        resultados.append(
+            movimiento
+        )
+
+    return resultados
+
+
+# ============================================================
 # DIVIDIR MONTO EN PLAZOS
 # ============================================================
 
@@ -2252,9 +2110,7 @@ def dividir_monto_en_plazos(
     )
 
     montos = [
-
         monto_base
-
         for _ in range(
             plazos
         )
@@ -2268,12 +2124,10 @@ def dividir_monto_en_plazos(
         2
     )
 
-    montos[
-        -1
-    ] = round(
-        montos[
-            -1
-        ]
+    # Ajustamos centavos en la última cuota
+
+    montos[-1] = round(
+        montos[-1]
         + diferencia,
         2
     )
@@ -2290,17 +2144,22 @@ def generar_fechas_plazos(
     plazos
 ):
 
-    return [
+    fechas = []
 
-        sumar_meses(
+    for numero_plazo in range(
+        plazos
+    ):
+
+        fecha = sumar_meses(
             fecha_inicial,
-            numero
+            numero_plazo
         )
 
-        for numero in range(
-            plazos
+        fechas.append(
+            fecha
         )
-    ]
+
+    return fechas
 
 
 # ============================================================
@@ -2330,14 +2189,14 @@ def generar_cuotas(
     if primera_fecha_pago is None:
 
         raise ValueError(
-            "No existe configuración completa "
-            "de corte y pago para la cuenta: "
-            f"{cuenta}"
+            (
+                "No existe configuración completa "
+                "de corte y pago para la cuenta: "
+                f"{cuenta}"
+            )
         )
 
-
     cuotas = []
-
 
     for indice in range(
         plazos
@@ -2345,35 +2204,86 @@ def generar_cuotas(
 
         numero = indice + 1
 
-
         fecha_pago = sumar_meses(
             primera_fecha_pago,
             indice
         )
 
-
         cuota = {
-
             "numero": numero,
-
             "plazos": plazos,
-
             "monto": montos[
                 indice
             ],
-
             "fecha": fecha_pago,
-
             "descripcion": (
                 f"{descripcion} "
                 f"{numero} de {plazos}"
             ),
         }
 
-
         cuotas.append(
             cuota
         )
 
-
     return cuotas
+
+
+# ============================================================
+# FUNCIONES DE COMPATIBILIDAD
+# ============================================================
+#
+# Las conservamos por si algún archivo o prueba antigua
+# todavía utiliza los nombres anteriores.
+# ============================================================
+
+def convertir_mes_nombre(
+    nombre_mes
+):
+
+    nombre_normalizado = normalizar_texto(
+        nombre_mes
+    )
+
+    return MESES.get(
+        nombre_normalizado
+    )
+
+
+def calcular_total_mes(
+    movimientos,
+    mes,
+    anio
+):
+
+    return calcular_total(
+        movimientos,
+        mes=mes,
+        anio=anio
+    )
+
+
+def calcular_total_categoria_mes(
+    movimientos,
+    mes,
+    anio,
+    subcategoria
+):
+
+    return calcular_total(
+        movimientos,
+        mes=mes,
+        anio=anio,
+        subcategoria=subcategoria
+    )
+
+
+def calcular_total_subcategoria(
+    movimientos,
+    subcategoria
+):
+
+    return calcular_total(
+        movimientos,
+        subcategoria=subcategoria
+    )
