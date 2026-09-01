@@ -3,7 +3,11 @@ import re
 import unicodedata
 
 from datetime import datetime
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import (
+    Decimal,
+    ROUND_HALF_UP,
+    ROUND_CEILING,
+)
 
 
 # ============================================================
@@ -2134,7 +2138,7 @@ def dividir_monto_en_plazos(
 
         monto_base = monto_teorico.quantize(
             Decimal("1"),
-            rounding=ROUND_HALF_UP
+            rounding=ROUND_CEILING
         )
 
         montos = [
@@ -2253,7 +2257,8 @@ def generar_cuotas(
 
     montos = dividir_monto_en_plazos(
         monto_total,
-        plazos
+        plazos,
+        cuenta,
     )
 
     primera_fecha_pago = (

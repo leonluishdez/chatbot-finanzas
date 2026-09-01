@@ -1,4 +1,5 @@
 import sys
+import re
 
 from difflib import SequenceMatcher
 
@@ -132,6 +133,15 @@ def comparar_movimientos(
     movimientos_internos,
     tolerancia=0.20
 ):
+    movimientos_internos_cargos = [
+        movimiento
+
+        for movimiento in movimientos_internos
+
+        if movimiento[
+            "monto"
+        ] > 0
+    ]
 
     coincidencias = []
 
@@ -144,9 +154,9 @@ def comparar_movimientos(
 
         for movimiento in movimientos_banco
 
-        if movimiento[
-            "monto"
-        ] > 0
+        if clasificar_movimiento_banco(
+            movimiento
+        ) == "cargo"
     ]
 
     for movimiento_banco in cargos_banco:
@@ -158,7 +168,7 @@ def comparar_movimientos(
         candidatos = []
 
         for indice, movimiento_interno in enumerate(
-            movimientos_internos
+            movimientos_internos_cargos
         ):
 
             if indice in usados_internos:
@@ -258,7 +268,7 @@ def comparar_movimientos(
     solo_interno = []
 
     for indice, movimiento in enumerate(
-        movimientos_internos
+        movimientos_internos_cargos
     ):
 
         if indice not in usados_internos:
@@ -272,6 +282,66 @@ def comparar_movimientos(
         "solo_banco": solo_banco,
         "solo_interno": solo_interno,
     }
+
+def clasificar_movimiento_banco(
+    movimiento
+):
+
+    monto = movimiento.get(
+        "monto",
+        0
+    )
+
+    descripcion = normalizar_texto(
+        movimiento.get(
+            "descripcion",
+            ""
+        )
+    )
+
+    # Abonos, pagos o devoluciones
+    if monto < 0:
+
+        return "abono"
+
+    # Cargos financieros que ya están
+    # representados en el resumen del estado
+    if (
+        "adm.tar.tit" in descripcion
+        or "interes" in descripcion
+        or "comision" in descripcion
+        or descripcion.startswith(
+            "iva sobre"
+        )
+        or descripcion.startswith(
+            "iva por"
+        )
+    ):
+
+        return "cargo_financiero"
+
+    # Compra original que fue enviada a MSI.
+    # Nuestro modelo guarda sus mensualidades,
+    # así que no debemos contar también
+    # el movimiento original.
+    es_origen_msi = re.search(
+        r"\ba\s+\d+\s+meses\s+s/?i\b",
+        descripcion
+    )
+
+    es_mensualidad = re.search(
+        r"\b\d+\s+(?:de|of)\s+\d+\b",
+        descripcion
+    )
+
+    if (
+        es_origen_msi
+        and not es_mensualidad
+    ):
+
+        return "origen_msi"
+
+    return "cargo"
 
 
 # ============================================================
