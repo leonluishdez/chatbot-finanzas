@@ -1,10 +1,13 @@
 import json
 import os
-
 from functools import lru_cache
 
 import gspread
 
+
+# ============================================================
+# CONFIGURACIÓN
+# ============================================================
 
 NOMBRE_ARCHIVO = os.getenv(
     "GOOGLE_SHEET_NAME",
@@ -16,10 +19,17 @@ NOMBRE_HOJA = os.getenv(
     "Movimientos"
 )
 
-ARCHIVO_CREDENCIALES = (
-    "service_account.json"
+NOMBRE_HOJA_ESTADOS = os.getenv(
+    "GOOGLE_WORKSHEET_ESTADOS_NAME",
+    "EstadosCuenta"
 )
 
+ARCHIVO_CREDENCIALES = "service_account.json"
+
+
+# ============================================================
+# CLIENTE DE GOOGLE SHEETS
+# ============================================================
 
 def obtener_cliente():
 
@@ -27,26 +37,18 @@ def obtener_cliente():
         "GOOGLE_SERVICE_ACCOUNT_JSON"
     )
 
-    # =========================
-    # RAILWAY / PRODUCCIÓN
-    # =========================
-
+    # Railway / producción
     if credenciales_json:
 
         credenciales = json.loads(
             credenciales_json
         )
 
-        return (
-            gspread.service_account_from_dict(
-                credenciales
-            )
+        return gspread.service_account_from_dict(
+            credenciales
         )
 
-    # =========================
-    # LOCAL
-    # =========================
-
+    # Desarrollo local
     if os.path.exists(
         ARCHIVO_CREDENCIALES
     ):
@@ -56,49 +58,103 @@ def obtener_cliente():
         )
 
     raise RuntimeError(
-        "No se encontraron credenciales de Google Sheets."
+        "No se encontraron credenciales "
+        "de Google Sheets."
     )
 
+
+# ============================================================
+# ARCHIVO
+# ============================================================
+
+@lru_cache(maxsize=1)
+def obtener_archivo():
+
+    cliente = obtener_cliente()
+
+    return cliente.open(
+        NOMBRE_ARCHIVO
+    )
+
+
+# ============================================================
+# HOJA: MOVIMIENTOS
+# ============================================================
 
 @lru_cache(maxsize=1)
 def obtener_hoja():
 
-    cliente = obtener_cliente()
-
-    archivo = cliente.open(
-        NOMBRE_ARCHIVO
-    )
-
-    return archivo.worksheet(
+    return obtener_archivo().worksheet(
         NOMBRE_HOJA
     )
 
 
 def obtener_movimientos():
 
-    hoja = obtener_hoja()
-
-    return hoja.get_all_records()
+    return obtener_hoja().get_all_records()
 
 
-def registrar_movimiento(fila):
+def registrar_movimiento(
+    fila
+):
 
-    hoja = obtener_hoja()
-
-    hoja.append_row(
+    obtener_hoja().append_row(
         fila,
         value_input_option="USER_ENTERED"
     )
 
 
-def registrar_movimientos(filas):
+def registrar_movimientos(
+    filas
+):
 
     if not filas:
         return
 
-    hoja = obtener_hoja()
+    obtener_hoja().append_rows(
+        filas,
+        value_input_option="USER_ENTERED"
+    )
 
-    hoja.append_rows(
+
+# ============================================================
+# HOJA: ESTADOS DE CUENTA
+# ============================================================
+
+@lru_cache(maxsize=1)
+def obtener_hoja_estados_cuenta():
+
+    return obtener_archivo().worksheet(
+        NOMBRE_HOJA_ESTADOS
+    )
+
+
+def obtener_estados_cuenta():
+
+    return (
+        obtener_hoja_estados_cuenta()
+        .get_all_records()
+    )
+
+
+def registrar_estado_cuenta(
+    fila
+):
+
+    obtener_hoja_estados_cuenta().append_row(
+        fila,
+        value_input_option="USER_ENTERED"
+    )
+
+
+def registrar_estados_cuenta(
+    filas
+):
+
+    if not filas:
+        return
+
+    obtener_hoja_estados_cuenta().append_rows(
         filas,
         value_input_option="USER_ENTERED"
     )
