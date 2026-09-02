@@ -2,4 +2,4 @@
 service_account.json
 .venv/
 __pycache__/
-estados/
+estados/.DS_Store
