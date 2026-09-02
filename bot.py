@@ -13,14 +13,17 @@ from telegram import (
 from telegram.ext import (
     ApplicationBuilder,
     CallbackQueryHandler,
+    CommandHandler,
     ContextTypes,
     MessageHandler,
     filters
 )
 
 from sheets import (
+    actualizar_subcategoria_movimiento,
     obtener_estados_cuenta,
     obtener_movimientos,
+    obtener_movimientos_sin_clasificar,
     registrar_estado_cuenta,
     registrar_movimiento,
     registrar_movimientos
@@ -86,6 +89,8 @@ CATEGORIAS_GASTO = [
     "Viajes",
     "Salud",
     "Aprendizaje",
+    "PPR",
+    "Amazon",
     "Varios",
 ]
 
@@ -1319,6 +1324,312 @@ def crear_detalle_conciliacion(
 
 
 # ============================================================
+# CLASIFICAR MOVIMIENTOS IMPORTADOS
+# ============================================================
+
+def crear_teclado_clasificacion():
+
+    teclado = []
+    fila = []
+
+    for categoria in CATEGORIAS_GASTO:
+
+        boton = InlineKeyboardButton(
+            categoria,
+            callback_data=(
+                f"clasificar:{categoria}"
+            )
+        )
+
+        fila.append(
+            boton
+        )
+
+        if len(fila) == 2:
+
+            teclado.append(
+                fila
+            )
+
+            fila = []
+
+    if fila:
+
+        teclado.append(
+            fila
+        )
+
+    return InlineKeyboardMarkup(
+        teclado
+    )
+
+
+def crear_texto_clasificacion(
+    movimiento,
+    total_pendientes
+):
+
+    descripcion = str(
+        movimiento.get(
+            "Descripcion",
+            ""
+        )
+    ).strip()
+
+    if not descripcion:
+
+        descripcion = str(
+            movimiento.get(
+                "Concepto",
+                ""
+            )
+        ).strip()
+
+    if not descripcion:
+
+        descripcion = (
+            "Sin descripción"
+        )
+
+    try:
+
+        monto = convertir_monto(
+            movimiento.get(
+                "Monto de Compra",
+                0
+            )
+        )
+
+    except (
+        ValueError,
+        TypeError
+    ):
+
+        monto = 0.0
+
+    cuenta = str(
+        movimiento.get(
+            "Cuenta",
+            ""
+        )
+    ).strip()
+
+    fecha_compra = str(
+        movimiento.get(
+            "Fecha de Compra",
+            ""
+        )
+    ).strip()
+
+    if not fecha_compra:
+
+        fecha_compra = (
+            "No disponible"
+        )
+
+    fecha_pago = str(
+        movimiento.get(
+            "Fecha de Pago",
+            ""
+        )
+    ).strip()
+
+    tipo_pago = str(
+        movimiento.get(
+            "Tipo de Pago",
+            ""
+        )
+    ).strip()
+
+    return (
+        "🏷️ Movimiento sin clasificar\n\n"
+        f"Pendientes: {total_pendientes}\n\n"
+        f"${monto:,.2f}\n"
+        f"{descripcion}\n\n"
+        f"Cuenta: {cuenta}\n"
+        f"Fecha de compra: {fecha_compra}\n"
+        f"Fecha de pago: {fecha_pago}\n"
+        f"Tipo de pago: {tipo_pago}\n\n"
+        "Selecciona la subcategoría:"
+    )
+
+
+async def iniciar_clasificacion(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
+
+    if update.message is None:
+
+        return
+
+    pendientes = (
+        obtener_movimientos_sin_clasificar()
+    )
+
+    if not pendientes:
+
+        context.user_data.pop(
+            "clasificacion_pendiente",
+            None
+        )
+
+        await update.message.reply_text(
+            (
+                "✅ No hay movimientos "
+                "sin clasificar."
+            )
+        )
+
+        return
+
+    movimiento = pendientes[0]
+
+    context.user_data[
+        "clasificacion_pendiente"
+    ] = {
+        "fila": movimiento[
+            "_fila"
+        ]
+    }
+
+    await update.message.reply_text(
+        crear_texto_clasificacion(
+            movimiento,
+            len(
+                pendientes
+            )
+        ),
+        reply_markup=(
+            crear_teclado_clasificacion()
+        )
+    )
+
+
+async def manejar_clasificacion(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE
+):
+
+    query = update.callback_query
+
+    if query is None:
+
+        return
+
+    await query.answer()
+
+    pendiente = context.user_data.get(
+        "clasificacion_pendiente"
+    )
+
+    if pendiente is None:
+
+        await query.edit_message_text(
+            (
+                "Ese movimiento ya no está "
+                "pendiente de clasificación.\n\n"
+                "Usa /clasificar para continuar."
+            )
+        )
+
+        return
+
+    categoria = query.data.replace(
+        "clasificar:",
+        "",
+        1
+    )
+
+    if categoria not in CATEGORIAS_GASTO:
+
+        await query.edit_message_text(
+            (
+                "La subcategoría seleccionada "
+                "no es válida."
+            )
+        )
+
+        return
+
+    numero_fila = pendiente.get(
+        "fila"
+    )
+
+    actualizado = (
+        actualizar_subcategoria_movimiento(
+            numero_fila,
+            categoria
+        )
+    )
+
+    if not actualizado:
+
+        context.user_data.pop(
+            "clasificacion_pendiente",
+            None
+        )
+
+        await query.edit_message_text(
+            (
+                "Ese movimiento cambió antes "
+                "de que pudiera clasificarlo.\n\n"
+                "Usa /clasificar para continuar."
+            )
+        )
+
+        return
+
+    pendientes = (
+        obtener_movimientos_sin_clasificar()
+    )
+
+    if not pendientes:
+
+        context.user_data.pop(
+            "clasificacion_pendiente",
+            None
+        )
+
+        await query.edit_message_text(
+            (
+                f"✅ Clasificado como: "
+                f"{categoria}\n\n"
+                "🎉 No quedan movimientos "
+                "sin clasificar."
+            )
+        )
+
+        return
+
+    siguiente = pendientes[0]
+
+    context.user_data[
+        "clasificacion_pendiente"
+    ] = {
+        "fila": siguiente[
+            "_fila"
+        ]
+    }
+
+    await query.edit_message_text(
+        (
+            f"✅ Clasificado como: "
+            f"{categoria}\n\n"
+            + crear_texto_clasificacion(
+                siguiente,
+                len(
+                    pendientes
+                )
+            )
+        ),
+        reply_markup=(
+            crear_teclado_clasificacion()
+        )
+    )
+
+
+# ============================================================
 # RESPONDER MENSAJES
 # ============================================================
 
@@ -1543,9 +1854,9 @@ async def responder_mensaje(
             )
 
 
-            subcategoria = datos.get(
-                "subcategoria"
-            )
+            # La categoría NO se asigna automáticamente.
+            # Siempre se selecciona con botones.
+            subcategoria = None
 
 
             plazos = datos.get(
@@ -3033,10 +3344,26 @@ def main():
 
 
     app.add_handler(
+        CommandHandler(
+            "clasificar",
+            iniciar_clasificacion
+        )
+    )
+
+
+    app.add_handler(
         MessageHandler(
             filters.TEXT
             & ~filters.COMMAND,
             responder_mensaje
+        )
+    )
+
+
+    app.add_handler(
+        CallbackQueryHandler(
+            manejar_clasificacion,
+            pattern=r"^clasificar:"
         )
     )
 

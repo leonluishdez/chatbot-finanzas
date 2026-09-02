@@ -1,5 +1,7 @@
+import re
 import sys
 from datetime import datetime
+from difflib import SequenceMatcher
 
 from lector_estados import (
     extraer_datos_estado,
@@ -53,6 +55,11 @@ MESES_BANCO = {
 }
 
 
+# Todo movimiento bancario nuevo entra sin categoría.
+# La subcategoría se asigna después desde Telegram.
+SUBCATEGORIA_PENDIENTE = "Sin clasificar"
+
+
 # ============================================================
 # ABONOS APLICABLES
 # ============================================================
@@ -66,7 +73,6 @@ def calcular_abonos_aplicables(
 ):
 
     if cuenta == "Invex":
-
         return round(
             pagos_reales,
             2,
@@ -77,7 +83,6 @@ def calcular_abonos_aplicables(
         "Citibanamex Oro",
         "BBVA Platinum",
     ):
-
         return round(
             pagos_reales
             + aclaraciones
@@ -130,14 +135,13 @@ def buscar_estado_existente(
             cuenta_estado == cuenta_objetivo
             and periodo_estado == periodo_objetivo
         ):
-
             return estado
 
     return None
 
 
 # ============================================================
-# ACTUALIZAR ESTADO
+# ACTUALIZAR ESTADO EXISTENTE
 # ============================================================
 
 def actualizar_estado_existente(
@@ -151,7 +155,6 @@ def actualizar_estado_existente(
     valores = hoja.get_all_values()
 
     if not valores:
-
         raise RuntimeError(
             "La hoja EstadosCuenta está vacía."
         )
@@ -177,13 +180,10 @@ def actualizar_estado_existente(
     ]
 
     if faltantes:
-
         raise RuntimeError(
             (
                 "Faltan columnas en EstadosCuenta: "
-                + ", ".join(
-                    faltantes
-                )
+                + ", ".join(faltantes)
             )
         )
 
@@ -209,7 +209,6 @@ def actualizar_estado_existente(
         )
 
         if len(fila) <= indice_maximo:
-
             continue
 
         cuenta_fila = str(
@@ -228,17 +227,14 @@ def actualizar_estado_existente(
             cuenta_fila == cuenta_objetivo
             and periodo_fila == periodo_objetivo
         ):
-
             coincidencias.append(
                 numero_fila
             )
 
     if not coincidencias:
-
         return False
 
     if len(coincidencias) > 1:
-
         raise RuntimeError(
             (
                 "Hay más de un estado para "
@@ -333,9 +329,7 @@ def validar_estado(
             "valido": False,
             "error": (
                 "Faltan componentes del estado: "
-                + ", ".join(
-                    faltantes
-                )
+                + ", ".join(faltantes)
             ),
         }
 
@@ -605,7 +599,7 @@ def mostrar_resumen_conciliacion(
 
 
 # ============================================================
-# FECHA MSI BBVA
+# FECHAS BANCARIAS
 # ============================================================
 
 def convertir_fecha_plan_bbva(
@@ -616,7 +610,6 @@ def convertir_fecha_plan_bbva(
         valor,
         datetime,
     ):
-
         return valor
 
     texto = str(
@@ -631,7 +624,7 @@ def convertir_fecha_plan_bbva(
 
         raise ValueError(
             (
-                "Fecha de compra MSI "
+                "Fecha bancaria "
                 f"no reconocida: {valor}"
             )
         )
@@ -648,7 +641,7 @@ def convertir_fecha_plan_bbva(
 
         raise ValueError(
             (
-                "Mes MSI no reconocido: "
+                "Mes no reconocido: "
                 f"{partes[1]}"
             )
         )
@@ -662,7 +655,6 @@ def convertir_fecha_plan_bbva(
     )
 
     if anio < 100:
-
         anio += 2000
 
     return datetime(
@@ -672,8 +664,98 @@ def convertir_fecha_plan_bbva(
     )
 
 
+def convertir_fecha_movimiento_banco(
+    valor,
+):
+
+    try:
+
+        return convertir_fecha(
+            valor
+        )
+
+    except Exception:
+
+        return convertir_fecha_plan_bbva(
+            valor
+        )
+
+
 # ============================================================
-# DETECTAR PLANES MSI
+# DETECCIÓN GENÉRICA DE CUOTAS
+# ============================================================
+
+def detectar_cuota_en_descripcion(
+    descripcion,
+):
+
+    texto = str(
+        descripcion
+    ).strip().lower()
+
+    coincidencia = re.search(
+        (
+            r"(?<!\d)"
+            r"0*(\d{1,2})"
+            r"\s+de\s+"
+            r"0*(\d{1,2})"
+            r"(?!\d)"
+        ),
+        texto,
+        flags=re.IGNORECASE,
+    )
+
+    if not coincidencia:
+        return {
+            "es_cuota": False,
+            "numero": None,
+            "plazos": None,
+            "texto_detectado": None,
+        }
+
+    try:
+        numero = int(
+            coincidencia.group(1)
+        )
+
+        plazos = int(
+            coincidencia.group(2)
+        )
+
+    except (
+        ValueError,
+        TypeError,
+    ):
+        return {
+            "es_cuota": False,
+            "numero": None,
+            "plazos": None,
+            "texto_detectado": None,
+        }
+
+    if not (
+        2 <= plazos <= 60
+        and 1 <= numero <= plazos
+    ):
+        return {
+            "es_cuota": False,
+            "numero": None,
+            "plazos": None,
+            "texto_detectado": None,
+        }
+
+    return {
+        "es_cuota": True,
+        "numero": numero,
+        "plazos": plazos,
+        "texto_detectado": (
+            coincidencia.group(0)
+        ),
+    }
+
+
+# ============================================================
+# DETECTAR PLANES MSI BBVA
 # ============================================================
 
 def detectar_planes_msi_bbva(
@@ -729,7 +811,6 @@ def detectar_planes_msi_bbva(
         ):
 
             if indice in indices_usados:
-
                 continue
 
             tipo_pago = str(
@@ -740,7 +821,6 @@ def detectar_planes_msi_bbva(
             ).strip().lower()
 
             if tipo_pago != "meses":
-
                 continue
 
             try:
@@ -760,14 +840,14 @@ def detectar_planes_msi_bbva(
                 ValueError,
                 TypeError,
             ):
-
                 continue
 
             if (
                 numero_plazos
-                != plan["plazos"]
+                != plan[
+                    "plazos"
+                ]
             ):
-
                 continue
 
             try:
@@ -783,14 +863,14 @@ def detectar_planes_msi_bbva(
                 ValueError,
                 TypeError,
             ):
-
                 continue
 
             if abs(
                 monto
-                - plan["cuota"]
+                - plan[
+                    "cuota"
+                ]
             ) > 0.01:
-
                 continue
 
             encontrado = {
@@ -825,7 +905,7 @@ def detectar_planes_msi_bbva(
 
 
 # ============================================================
-# VALIDAR RECONSTRUCCIÓN MSI
+# VALIDAR RECONSTRUCCIÓN MSI BBVA
 # ============================================================
 
 def validar_reconstruccion_msi_bbva(
@@ -875,10 +955,16 @@ def validar_reconstruccion_msi_bbva(
         )
 
         cuotas = generar_cuotas(
-            plan["monto_original"],
-            plan["plazos"],
+            plan[
+                "monto_original"
+            ],
+            plan[
+                "plazos"
+            ],
             fecha_compra,
-            plan["descripcion"],
+            plan[
+                "descripcion"
+            ],
             cuenta,
         )
 
@@ -887,12 +973,15 @@ def validar_reconstruccion_msi_bbva(
         for cuota in cuotas:
 
             if (
-                cuota["numero"]
-                == plan["numero"]
+                cuota[
+                    "numero"
+                ]
+                == plan[
+                    "numero"
+                ]
             ):
 
                 cuota_actual = cuota
-
                 break
 
         identidad = (
@@ -933,7 +1022,9 @@ def validar_reconstruccion_msi_bbva(
 
         total_reconstruido = round(
             sum(
-                cuota["monto"]
+                cuota[
+                    "monto"
+                ]
                 for cuota
                 in cuotas
             ),
@@ -942,20 +1033,30 @@ def validar_reconstruccion_msi_bbva(
 
         diferencia_total = round(
             total_reconstruido
-            - plan["monto_original"],
+            - plan[
+                "monto_original"
+            ],
             2,
         )
 
         diferencia_cuota = round(
-            cuota_actual["monto"]
-            - plan["cuota"],
+            cuota_actual[
+                "monto"
+            ]
+            - plan[
+                "cuota"
+            ],
             2,
         )
 
         valido = (
-            abs(diferencia_total) <= 0.01
+            abs(
+                diferencia_total
+            ) <= 0.01
             and
-            abs(diferencia_cuota) <= 0.01
+            abs(
+                diferencia_cuota
+            ) <= 0.01
         )
 
         resultado = {
@@ -980,13 +1081,11 @@ def validar_reconstruccion_msi_bbva(
         )
 
         if valido:
-
             validos.append(
                 resultado
             )
 
         else:
-
             invalidos.append(
                 resultado
             )
@@ -1000,7 +1099,7 @@ def validar_reconstruccion_msi_bbva(
 
 
 # ============================================================
-# PREPARAR FILAS MSI
+# PREPARAR FILAS MSI BBVA
 # ============================================================
 
 def preparar_filas_msi_faltantes_bbva(
@@ -1014,7 +1113,6 @@ def preparar_filas_msi_faltantes_bbva(
     )
 
     if not validacion:
-
         return filas
 
     for resultado in validacion[
@@ -1024,7 +1122,6 @@ def preparar_filas_msi_faltantes_bbva(
         if not resultado[
             "faltante"
         ]:
-
             continue
 
         plan = resultado[
@@ -1067,11 +1164,9 @@ def preparar_filas_msi_faltantes_bbva(
             if numero < plan[
                 "numero"
             ]:
-
                 status = "Pagado"
 
             else:
-
                 status = "Pendiente"
 
             fila = [
@@ -1090,7 +1185,7 @@ def preparar_filas_msi_faltantes_bbva(
                 "BBVA Platinum",
                 "",
                 descripcion,
-                "Varios",
+                SUBCATEGORIA_PENDIENTE,
                 "Meses",
                 plazos,
                 status,
@@ -1109,7 +1204,7 @@ def preparar_filas_msi_faltantes_bbva(
 
 
 # ============================================================
-# REVISAR CUOTA MSI
+# REVISAR CUOTA MSI BBVA
 # ============================================================
 
 def revisar_cuota_msi_existente(
@@ -1159,7 +1254,6 @@ def revisar_cuota_msi_existente(
         ).strip().lower()
 
         if cuenta != cuenta_propuesta:
-
             continue
 
         tipo_pago = str(
@@ -1170,7 +1264,6 @@ def revisar_cuota_msi_existente(
         ).strip().lower()
 
         if tipo_pago != tipo_pago_propuesto:
-
             continue
 
         try:
@@ -1190,11 +1283,9 @@ def revisar_cuota_msi_existente(
             ValueError,
             TypeError,
         ):
-
             continue
 
         if plazos != plazos_propuestos:
-
             continue
 
         try:
@@ -1207,14 +1298,12 @@ def revisar_cuota_msi_existente(
             )
 
         except Exception:
-
             continue
 
         if abs(
             monto
             - monto_propuesto
         ) > 0.01:
-
             continue
 
         try:
@@ -1227,7 +1316,6 @@ def revisar_cuota_msi_existente(
             )
 
         except Exception:
-
             continue
 
         if (
@@ -1238,25 +1326,30 @@ def revisar_cuota_msi_existente(
             or fecha.day
             != fecha_propuesta.day
         ):
-
             continue
 
         coincidencias.append(
             movimiento
         )
 
-    if len(coincidencias) == 0:
+    if len(
+        coincidencias
+    ) == 0:
 
         return {
             "estado": "nuevo",
         }
 
-    if len(coincidencias) == 1:
+    if len(
+        coincidencias
+    ) == 1:
 
         return {
             "estado": "duplicado",
             "movimiento": (
-                coincidencias[0]
+                coincidencias[
+                    0
+                ]
             ),
         }
 
@@ -1267,7 +1360,7 @@ def revisar_cuota_msi_existente(
 
 
 # ============================================================
-# APLICAR MSI
+# APLICAR MSI BBVA
 # ============================================================
 
 def aplicar_msi_faltantes_bbva(
@@ -1305,7 +1398,9 @@ def aplicar_msi_faltantes_bbva(
 
         revision = (
             revisar_cuota_msi_existente(
-                item["fila"],
+                item[
+                    "fila"
+                ],
                 movimientos,
             )
         )
@@ -1344,19 +1439,31 @@ def aplicar_msi_faltantes_bbva(
     print()
 
     print(
-        f"Filas propuestas: {len(filas_propuestas)}"
+        (
+            "Filas propuestas: "
+            f"{len(filas_propuestas)}"
+        )
     )
 
     print(
-        f"Ya existentes: {len(duplicadas)}"
+        (
+            "Ya existentes: "
+            f"{len(duplicadas)}"
+        )
     )
 
     print(
-        f"Conflictos: {len(conflictos)}"
+        (
+            "Conflictos: "
+            f"{len(conflictos)}"
+        )
     )
 
     print(
-        f"Nuevas: {len(nuevas)}"
+        (
+            "Nuevas: "
+            f"{len(nuevas)}"
+        )
     )
 
     if conflictos:
@@ -1411,7 +1518,10 @@ def aplicar_msi_faltantes_bbva(
     )
 
     print(
-        f"Filas agregadas: {len(filas_sheets)}"
+        (
+            "Filas agregadas: "
+            f"{len(filas_sheets)}"
+        )
     )
 
     return {
@@ -1428,7 +1538,7 @@ def aplicar_msi_faltantes_bbva(
 
 
 # ============================================================
-# MOSTRAR MSI
+# MOSTRAR MSI BBVA
 # ============================================================
 
 def mostrar_analisis_msi_bbva(
@@ -1446,7 +1556,6 @@ def mostrar_analisis_msi_bbva(
     if not analisis_msi[
         "aplica"
     ]:
-
         return analisis_msi
 
     print()
@@ -1478,9 +1587,40 @@ def mostrar_analisis_msi_bbva(
         )
     )
 
-    if not analisis_msi[
+    if analisis_msi[
         "faltantes"
     ]:
+
+        print()
+
+        print(
+            "⚠️ PLANES MSI FALTANTES"
+        )
+
+        print(
+            "-" * 50
+        )
+
+        for plan in analisis_msi[
+            "faltantes"
+        ]:
+
+            print(
+                (
+                    f"{plan['numero']:02d}/"
+                    f"{plan['plazos']:02d}"
+                    f" | "
+                    f"${plan['cuota']:,.2f}"
+                    f" | original "
+                    f"${plan['monto_original']:,.2f}"
+                )
+            )
+
+            print(
+                f"   {plan['descripcion']}"
+            )
+
+    else:
 
         print()
 
@@ -1557,10 +1697,7 @@ def mostrar_analisis_msi_bbva(
         )
 
         print(
-            (
-                "   "
-                f"{plan['descripcion']}"
-            )
+            f"   {plan['descripcion']}"
         )
 
         if resultado[
@@ -1587,6 +1724,18 @@ def mostrar_analisis_msi_bbva(
                     f"${resultado['diferencia_cuota']:,.2f}"
                 )
             )
+
+        else:
+
+            error = resultado.get(
+                "error"
+            )
+
+            if error:
+
+                print(
+                    f"   ⚠️ {error}"
+                )
 
     filas_propuestas = (
         preparar_filas_msi_faltantes_bbva(
@@ -1646,28 +1795,7 @@ def mostrar_analisis_msi_bbva(
 
 
 # ============================================================
-# FECHA MOVIMIENTO BANCARIO
-# ============================================================
-
-def convertir_fecha_movimiento_banco(
-    valor,
-):
-
-    try:
-
-        return convertir_fecha(
-            valor
-        )
-
-    except Exception:
-
-        return convertir_fecha_plan_bbva(
-            valor
-        )
-
-
-# ============================================================
-# ¿MOVIMIENTO ES MSI?
+# DETECTAR SI MOVIMIENTO BBVA ES MSI
 # ============================================================
 
 def movimiento_corresponde_a_msi_bbva(
@@ -1679,7 +1807,6 @@ def movimiento_corresponde_a_msi_bbva(
         "aplica",
         False,
     ):
-
         return False
 
     descripcion_banco = normalizar_texto(
@@ -1702,7 +1829,6 @@ def movimiento_corresponde_a_msi_bbva(
         ValueError,
         TypeError,
     ):
-
         return False
 
     for plan in analisis_msi.get(
@@ -1712,9 +1838,10 @@ def movimiento_corresponde_a_msi_bbva(
 
         if abs(
             monto_banco
-            - plan["cuota"]
+            - plan[
+                "cuota"
+            ]
         ) > 0.01:
-
             continue
 
         descripcion_plan = str(
@@ -1726,7 +1853,9 @@ def movimiento_corresponde_a_msi_bbva(
 
         comercio_plan = (
             descripcion_plan
-            .split(";")[0]
+            .split(
+                ";"
+            )[0]
             .strip()
         )
 
@@ -1735,7 +1864,6 @@ def movimiento_corresponde_a_msi_bbva(
         )
 
         if not comercio_plan:
-
             continue
 
         if (
@@ -1745,115 +1873,22 @@ def movimiento_corresponde_a_msi_bbva(
             descripcion_banco
             in comercio_plan
         ):
-
             return True
 
     return False
 
 
 # ============================================================
-# CATEGORIZAR REGULAR
+# CATEGORIZACIÓN
 # ============================================================
 
-def categorizar_cargo_regular(
-    descripcion,
-):
-
-    texto = normalizar_texto(
-        descripcion
-    )
-
-    reglas = [
-        (
-            "Comida",
-            "Alta",
-            [
-                "didifood",
-                "didi food",
-                "city market",
-                "oxxo",
-                "abts",
-                "restaurant",
-                "rest ",
-                "cafe",
-                "walmart",
-                "wal mart",
-            ],
-        ),
-        (
-            "Transporte",
-            "Alta",
-            [
-                "uber",
-                "super didi",
-                "didi",
-            ],
-        ),
-        (
-            "Salud",
-            "Alta",
-            [
-                "farm guadalajara",
-                "farmacia",
-                "farm ",
-                "tda nat",
-                "natu",
-            ],
-        ),
-        (
-            "Salud",
-            "Media",
-            [
-                "sanrafael",
-                "allianz",
-            ],
-        ),
-        (
-            "Entretenimiento",
-            "Alta",
-            [
-                "cinepolis",
-                "cinemex",
-                "netflix",
-            ],
-        ),
-        (
-            "Servicios",
-            "Alta",
-            [
-                "at t",
-                "telcel",
-                "totalplay",
-                "izzi",
-            ],
-        ),
-    ]
-
-    for (
-        categoria,
-        confianza,
-        palabras,
-    ) in reglas:
-
-        for regla in palabras:
-
-            if regla in texto:
-
-                return {
-                    "categoria": categoria,
-                    "confianza": confianza,
-                    "regla": regla,
-                }
-
-    return {
-        "categoria": "Varios",
-        "confianza": "Baja",
-        "regla": None,
-    }
+# El importador no decide categorías por comercio.
+# Todo cargo nuevo entra como "Sin clasificar" y se
+# categoriza después desde Telegram mediante botones.
 
 
 # ============================================================
-# PREPARAR REGULARES FALTANTES
+# PREPARAR CARGOS REGULARES FALTANTES
 # ============================================================
 
 def preparar_cargos_regulares_faltantes(
@@ -1873,26 +1908,11 @@ def preparar_cargos_regulares_faltantes(
     )
 
     propuestas = []
-    msi_excluidos = []
+    cuotas_excluidas = []
 
     for movimiento in conciliacion[
         "solo_banco"
     ]:
-
-        if (
-            cuenta == "BBVA Platinum"
-            and
-            movimiento_corresponde_a_msi_bbva(
-                movimiento,
-                analisis_msi,
-            )
-        ):
-
-            msi_excluidos.append(
-                movimiento
-            )
-
-            continue
 
         descripcion = str(
             movimiento.get(
@@ -1901,24 +1921,60 @@ def preparar_cargos_regulares_faltantes(
             )
         ).strip()
 
-        try:
+        cuota_generica = (
+            detectar_cuota_en_descripcion(
+                descripcion
+            )
+        )
 
+        if cuota_generica[
+            "es_cuota"
+        ]:
+            cuotas_excluidas.append(
+                {
+                    "movimiento": movimiento,
+                    "motivo": "patron_cuota",
+                    "numero": cuota_generica[
+                        "numero"
+                    ],
+                    "plazos": cuota_generica[
+                        "plazos"
+                    ],
+                }
+            )
+            continue
+
+        if (
+            cuenta == "BBVA Platinum"
+            and movimiento_corresponde_a_msi_bbva(
+                movimiento,
+                analisis_msi,
+            )
+        ):
+            cuotas_excluidas.append(
+                {
+                    "movimiento": movimiento,
+                    "motivo": "msi_bbva",
+                    "numero": None,
+                    "plazos": None,
+                }
+            )
+            continue
+
+        try:
             monto = float(
                 movimiento.get(
                     "monto",
                     0,
                 )
             )
-
         except (
             ValueError,
             TypeError,
         ):
-
             continue
 
         try:
-
             fecha_operacion = (
                 convertir_fecha_movimiento_banco(
                     movimiento.get(
@@ -1927,29 +1983,15 @@ def preparar_cargos_regulares_faltantes(
                     )
                 )
             )
-
         except Exception:
-
             print()
-
             print(
-                (
-                    "⚠️ No pude convertir "
-                    "la fecha de:"
-                )
+                "⚠️ No pude convertir la fecha de:"
             )
-
             print(
                 f"   {descripcion}"
             )
-
             continue
-
-        categoria = (
-            categorizar_cargo_regular(
-                descripcion
-            )
-        )
 
         fila = [
             "Gasto",
@@ -1963,9 +2005,7 @@ def preparar_cargos_regulares_faltantes(
             cuenta,
             "",
             descripcion,
-            categoria[
-                "categoria"
-            ],
+            SUBCATEGORIA_PENDIENTE,
             "Contado",
             1,
             "Pendiente",
@@ -1975,32 +2015,17 @@ def preparar_cargos_regulares_faltantes(
             {
                 "movimiento": movimiento,
                 "fila": fila,
-                "categoria": (
-                    categoria[
-                        "categoria"
-                    ]
-                ),
-                "confianza": (
-                    categoria[
-                        "confianza"
-                    ]
-                ),
-                "regla": (
-                    categoria[
-                        "regla"
-                    ]
-                ),
             }
         )
 
     return {
         "propuestas": propuestas,
-        "msi_excluidos": msi_excluidos,
+        "cuotas_excluidas": cuotas_excluidas,
     }
 
 
 # ============================================================
-# MOSTRAR REGULARES FALTANTES
+# MOSTRAR CARGOS REGULARES
 # ============================================================
 
 def mostrar_cargos_regulares_faltantes(
@@ -2021,51 +2046,67 @@ def mostrar_cargos_regulares_faltantes(
         "propuestas"
     ]
 
-    msi_excluidos = resultado[
-        "msi_excluidos"
+    cuotas_excluidas = resultado[
+        "cuotas_excluidas"
     ]
 
     print()
-
     print(
         "=== CARGOS REGULARES FALTANTES ==="
     )
-
     print()
 
     print(
-        (
-            "Movimientos solo banco: "
-            f"{len(conciliacion['solo_banco'])}"
-        )
+        "Movimientos solo banco: "
+        f"{len(conciliacion['solo_banco'])}"
     )
 
     print(
-        (
-            "MSI excluidos: "
-            f"{len(msi_excluidos)}"
-        )
+        "Cuotas/MSI excluidos: "
+        f"{len(cuotas_excluidas)}"
     )
 
     print(
-        (
-            "Cargos regulares propuestos: "
-            f"{len(propuestas)}"
-        )
+        "Cargos regulares propuestos: "
+        f"{len(propuestas)}"
     )
+
+    if cuotas_excluidas:
+        print()
+        print(
+            "=== CUOTAS DETECTADAS ==="
+        )
+
+        for item in cuotas_excluidas:
+            movimiento = item[
+                "movimiento"
+            ]
+
+            if (
+                item["numero"] is not None
+                and item["plazos"] is not None
+            ):
+                cuota_texto = (
+                    f"{item['numero']:02d}/"
+                    f"{item['plazos']:02d}"
+                )
+            else:
+                cuota_texto = "MSI BBVA"
+
+            print(
+                f"💳 {cuota_texto} | "
+                f"${movimiento['monto']:,.2f} | "
+                f"{movimiento['descripcion']}"
+            )
 
     if not propuestas:
-
         print()
-
         print(
             "✅ No hay cargos regulares faltantes."
         )
-
         return resultado
 
     print()
-
     print(
         "=== SIMULACIÓN DE ALTA REGULAR ==="
     )
@@ -2076,43 +2117,1457 @@ def mostrar_cargos_regulares_faltantes(
         propuestas,
         start=1,
     ):
-
         fila = item[
             "fila"
         ]
 
         total += float(
-            fila[
-                3
+            fila[3]
+        )
+
+        print()
+        print(
+            f"{numero:02d}. "
+            f"${fila[3]:,.2f} | "
+            f"{fila[6]}"
+        )
+
+        print(
+            "    Fecha compra: "
+            f"{fila[2]}"
+        )
+
+        print(
+            "    Fecha pago: "
+            f"{fila[1]}"
+        )
+
+        print(
+            "    Subcategoría: "
+            f"{SUBCATEGORIA_PENDIENTE}"
+        )
+
+    print()
+    print(
+        "Total propuesto: "
+        f"${total:,.2f}"
+    )
+
+    return resultado
+
+
+# ============================================================
+# NORMALIZAR DESCRIPCIÓN DE CUOTA
+# ============================================================
+
+def normalizar_descripcion_cuota(
+    descripcion,
+):
+
+    texto = normalizar_texto(
+        descripcion
+    )
+
+    texto = re.sub(
+        (
+            r"(?<!\d)"
+            r"0*\d{1,3}"
+            r"\s+de\s+"
+            r"0*\d{1,3}"
+            r"(?!\d)"
+        ),
+        " ",
+        texto,
+        flags=re.IGNORECASE,
+    )
+
+    texto = re.sub(
+        (
+            r"(?<!\d)"
+            r"0*\d{1,3}"
+            r"\s*/\s*"
+            r"0*\d{1,3}"
+            r"(?!\d)"
+        ),
+        " ",
+        texto,
+        flags=re.IGNORECASE,
+    )
+
+    texto = re.sub(
+        r"\s+",
+        " ",
+        texto,
+    ).strip()
+
+    return texto
+
+
+# ============================================================
+# SIMILITUD CUOTA
+# ============================================================
+
+def calcular_similitud_cuota(
+    descripcion_banco,
+    descripcion_sheets,
+):
+
+    banco = normalizar_descripcion_cuota(
+        descripcion_banco
+    )
+
+    sheets = normalizar_descripcion_cuota(
+        descripcion_sheets
+    )
+
+    if not banco or not sheets:
+        return 0.0
+
+    if banco == sheets:
+        return 1.0
+
+    if (
+        banco in sheets
+        or sheets in banco
+    ):
+        return 0.95
+
+    return SequenceMatcher(
+        None,
+        banco,
+        sheets,
+    ).ratio()
+
+
+# ============================================================
+# OBTENER ORIGINAL INTERNO
+# ============================================================
+
+def obtener_original_interno(
+    movimiento_interno,
+):
+
+    return movimiento_interno.get(
+        "movimiento",
+        movimiento_interno,
+    )
+
+
+# ============================================================
+# CANDIDATO DE CUOTA
+# ============================================================
+
+def candidato_coincide_con_cuota(
+    datos,
+    cuota_detectada,
+    movimiento_interno,
+):
+
+    if (
+        cuota_detectada.get(
+            "motivo"
+        )
+        != "patron_cuota"
+    ):
+        return None
+
+    if (
+        cuota_detectada.get(
+            "plazos"
+        )
+        is None
+    ):
+        return None
+
+    banco = cuota_detectada[
+        "movimiento"
+    ]
+
+    original = obtener_original_interno(
+        movimiento_interno
+    )
+
+    cuenta_objetivo = normalizar_texto(
+        datos[
+            "cuenta"
+        ]
+    )
+
+    cuenta_sheets = normalizar_texto(
+        original.get(
+            "Cuenta",
+            "",
+        )
+    )
+
+    if cuenta_sheets != cuenta_objetivo:
+        return None
+
+    tipo_pago = normalizar_texto(
+        original.get(
+            "Tipo de Pago",
+            "",
+        )
+    )
+
+    if tipo_pago != "meses":
+        return None
+
+    try:
+
+        plazos_sheets = int(
+            float(
+                str(
+                    original.get(
+                        "Numero de Plazos",
+                        0,
+                    )
+                )
+            )
+        )
+
+    except (
+        TypeError,
+        ValueError,
+    ):
+        return None
+
+    if (
+        plazos_sheets
+        != cuota_detectada[
+            "plazos"
+        ]
+    ):
+        return None
+
+    try:
+
+        monto_sheets = convertir_monto(
+            original.get(
+                "Monto de Compra",
+                0,
+            )
+        )
+
+        monto_banco = float(
+            banco.get(
+                "monto",
+                0,
+            )
+        )
+
+    except (
+        TypeError,
+        ValueError,
+    ):
+        return None
+
+    if abs(
+        monto_sheets
+        - monto_banco
+    ) > 0.01:
+        return None
+
+    try:
+
+        fecha_sheets = convertir_fecha(
+            original.get(
+                "Fecha de Pago",
+                "",
+            )
+        )
+
+        fecha_limite = convertir_fecha(
+            datos[
+                "fecha_limite_pago"
             ]
+        )
+
+    except Exception:
+        return None
+
+    if (
+        fecha_sheets.year
+        != fecha_limite.year
+        or
+        fecha_sheets.month
+        != fecha_limite.month
+        or
+        fecha_sheets.day
+        != fecha_limite.day
+    ):
+        return None
+
+    similitud = calcular_similitud_cuota(
+        banco.get(
+            "descripcion",
+            "",
+        ),
+        original.get(
+            "Descripcion",
+            "",
+        ),
+    )
+
+    return {
+        "interno": movimiento_interno,
+        "original": original,
+        "similitud": similitud,
+    }
+
+
+# ============================================================
+# CONCILIAR CUOTAS MULTIBANCO
+# ============================================================
+
+def conciliar_cuotas_genericas(
+    datos,
+    conciliacion,
+    analisis_regulares,
+    mostrar=True,
+):
+
+    cuotas_todas = analisis_regulares.get(
+        "cuotas_excluidas",
+        [],
+    )
+
+    cuotas = [
+        cuota
+        for cuota
+        in cuotas_todas
+        if (
+            cuota.get(
+                "motivo"
+            )
+            == "patron_cuota"
+            and
+            cuota.get(
+                "numero"
+            )
+            is not None
+            and
+            cuota.get(
+                "plazos"
+            )
+            is not None
+        )
+    ]
+
+    solo_banco = list(
+        conciliacion[
+            "solo_banco"
+        ]
+    )
+
+    solo_interno = list(
+        conciliacion[
+            "solo_interno"
+        ]
+    )
+
+    existentes = []
+    faltantes = []
+    ambiguas = []
+
+    indices_internos_usados = set()
+    indices_banco_resueltos = set()
+
+    for cuota in cuotas:
+
+        candidatos = []
+
+        for indice, movimiento_interno in enumerate(
+            solo_interno
+        ):
+
+            if (
+                indice
+                in indices_internos_usados
+            ):
+                continue
+
+            candidato = (
+                candidato_coincide_con_cuota(
+                    datos,
+                    cuota,
+                    movimiento_interno,
+                )
+            )
+
+            if candidato is None:
+                continue
+
+            candidato[
+                "indice_interno"
+            ] = indice
+
+            candidatos.append(
+                candidato
+            )
+
+        if not candidatos:
+
+            faltantes.append(
+                cuota
+            )
+
+            continue
+
+        if len(
+            candidatos
+        ) == 1:
+
+            ganador = candidatos[
+                0
+            ]
+
+            if ganador[
+                "similitud"
+            ] < 0.20:
+
+                ambiguas.append(
+                    {
+                        "cuota": cuota,
+                        "candidatos": (
+                            candidatos
+                        ),
+                    }
+                )
+
+                continue
+
+            existentes.append(
+                {
+                    "cuota": cuota,
+                    "candidato": ganador,
+                }
+            )
+
+            indices_internos_usados.add(
+                ganador[
+                    "indice_interno"
+                ]
+            )
+
+            continue
+
+        candidatos.sort(
+            key=lambda item: (
+                item[
+                    "similitud"
+                ]
+            ),
+            reverse=True,
+        )
+
+        mejor = candidatos[
+            0
+        ]
+
+        segundo = candidatos[
+            1
+        ]
+
+        diferencia = (
+            mejor[
+                "similitud"
+            ]
+            - segundo[
+                "similitud"
+            ]
+        )
+
+        if (
+            mejor[
+                "similitud"
+            ] >= 0.55
+            and
+            diferencia >= 0.15
+        ):
+
+            existentes.append(
+                {
+                    "cuota": cuota,
+                    "candidato": mejor,
+                }
+            )
+
+            indices_internos_usados.add(
+                mejor[
+                    "indice_interno"
+                ]
+            )
+
+        else:
+
+            ambiguas.append(
+                {
+                    "cuota": cuota,
+                    "candidatos": (
+                        candidatos
+                    ),
+                }
+            )
+
+    for resuelta in existentes:
+
+        movimiento_objetivo = (
+            resuelta[
+                "cuota"
+            ][
+                "movimiento"
+            ]
+        )
+
+        for indice, movimiento in enumerate(
+            solo_banco
+        ):
+
+            if (
+                indice
+                in indices_banco_resueltos
+            ):
+                continue
+
+            if (
+                movimiento
+                is movimiento_objetivo
+                or
+                movimiento
+                == movimiento_objetivo
+            ):
+
+                indices_banco_resueltos.add(
+                    indice
+                )
+
+                resuelta[
+                    "indice_banco"
+                ] = indice
+
+                break
+
+    nuevas_coincidencias = list(
+        conciliacion[
+            "coincidencias"
+        ]
+    )
+
+    for resuelta in existentes:
+
+        indice_banco = resuelta.get(
+            "indice_banco"
+        )
+
+        if indice_banco is None:
+            continue
+
+        indice_interno = (
+            resuelta[
+                "candidato"
+            ][
+                "indice_interno"
+            ]
+        )
+
+        nuevas_coincidencias.append(
+            {
+                "banco": (
+                    solo_banco[
+                        indice_banco
+                    ]
+                ),
+                "interno": (
+                    solo_interno[
+                        indice_interno
+                    ]
+                ),
+            }
+        )
+
+    nuevos_solo_banco = [
+        movimiento
+        for indice, movimiento
+        in enumerate(
+            solo_banco
+        )
+        if (
+            indice
+            not in indices_banco_resueltos
+        )
+    ]
+
+    nuevos_solo_interno = [
+        movimiento
+        for indice, movimiento
+        in enumerate(
+            solo_interno
+        )
+        if (
+            indice
+            not in indices_internos_usados
+        )
+    ]
+
+    total_coincidente = round(
+        sum(
+            float(
+                item[
+                    "banco"
+                ][
+                    "monto"
+                ]
+            )
+            for item
+            in nuevas_coincidencias
+        ),
+        2,
+    )
+
+    total_solo_banco = round(
+        sum(
+            float(
+                movimiento[
+                    "monto"
+                ]
+            )
+            for movimiento
+            in nuevos_solo_banco
+        ),
+        2,
+    )
+
+    total_solo_interno = round(
+        sum(
+            float(
+                movimiento[
+                    "monto"
+                ]
+            )
+            for movimiento
+            in nuevos_solo_interno
+        ),
+        2,
+    )
+
+    conciliacion_actualizada = {
+        "conciliado": (
+            len(
+                nuevos_solo_banco
+            ) == 0
+            and
+            len(
+                nuevos_solo_interno
+            ) == 0
+        ),
+        "coincidencias": (
+            nuevas_coincidencias
+        ),
+        "solo_banco": (
+            nuevos_solo_banco
+        ),
+        "solo_interno": (
+            nuevos_solo_interno
+        ),
+        "total_coincidente": (
+            total_coincidente
+        ),
+        "total_solo_banco": (
+            total_solo_banco
+        ),
+        "total_solo_interno": (
+            total_solo_interno
+        ),
+    }
+
+    analisis = {
+        "detectadas": cuotas,
+        "existentes": existentes,
+        "faltantes": faltantes,
+        "ambiguas": ambiguas,
+    }
+
+    if mostrar:
+
+        print()
+
+        print(
+            "=== CONCILIACIÓN DE CUOTAS MULTIBANCO ==="
         )
 
         print()
 
         print(
             (
-                f"{numero:02d}. "
-                f"${fila[3]:,.2f}"
-                f" | "
-                f"{fila[6]}"
+                "Cuotas detectadas: "
+                f"{len(cuotas)}"
             )
         )
 
         print(
             (
-                "    Categoría: "
-                f"{item['categoria']}"
-                f" | confianza "
-                f"{item['confianza']}"
+                "Cuotas ya existentes: "
+                f"{len(existentes)}"
             )
         )
+
+        print(
+            (
+                "Cuotas faltantes: "
+                f"{len(faltantes)}"
+            )
+        )
+
+        print(
+            (
+                "Cuotas ambiguas: "
+                f"{len(ambiguas)}"
+            )
+        )
+
+        if existentes:
+
+            print()
+
+            print(
+                "✅ CUOTAS YA REGISTRADAS"
+            )
+
+            print(
+                "-" * 50
+            )
+
+            for item in existentes:
+
+                cuota = item[
+                    "cuota"
+                ]
+
+                banco = cuota[
+                    "movimiento"
+                ]
+
+                candidato = item[
+                    "candidato"
+                ]
+
+                print(
+                    (
+                        f"{cuota['numero']:02d}/"
+                        f"{cuota['plazos']:02d}"
+                        f" | "
+                        f"${banco['monto']:,.2f}"
+                        f" | "
+                        f"{banco['descripcion']}"
+                    )
+                )
+
+                print(
+                    (
+                        "   Similitud descripción: "
+                        f"{candidato['similitud']:.0%}"
+                    )
+                )
+
+        if faltantes:
+
+            print()
+
+            print(
+                "⚠️ CUOTAS FALTANTES EN SHEETS"
+            )
+
+            print(
+                "-" * 50
+            )
+
+            for cuota in faltantes:
+
+                banco = cuota[
+                    "movimiento"
+                ]
+
+                print(
+                    (
+                        f"{cuota['numero']:02d}/"
+                        f"{cuota['plazos']:02d}"
+                        f" | "
+                        f"${banco['monto']:,.2f}"
+                        f" | "
+                        f"{banco['descripcion']}"
+                    )
+                )
+
+                print(
+                    (
+                        "   No se reconstruirá "
+                        "automáticamente."
+                    )
+                )
+
+        if ambiguas:
+
+            print()
+
+            print(
+                "🟡 CUOTAS AMBIGUAS"
+            )
+
+            print(
+                "-" * 50
+            )
+
+            for item in ambiguas:
+
+                cuota = item[
+                    "cuota"
+                ]
+
+                banco = cuota[
+                    "movimiento"
+                ]
+
+                print()
+
+                print(
+                    (
+                        f"{cuota['numero']:02d}/"
+                        f"{cuota['plazos']:02d}"
+                        f" | "
+                        f"${banco['monto']:,.2f}"
+                        f" | "
+                        f"{banco['descripcion']}"
+                    )
+                )
+
+                for candidato in item[
+                    "candidatos"
+                ]:
+
+                    original = candidato[
+                        "original"
+                    ]
+
+                    print(
+                        (
+                            "   Sheets: "
+                            f"{original.get('Descripcion', '')}"
+                            f" | similitud "
+                            f"{candidato['similitud']:.0%}"
+                        )
+                    )
+
+    return (
+        analisis,
+        conciliacion_actualizada,
+    )
+
+
+# ============================================================
+# PREPARAR FILAS DE CUOTAS GENÉRICAS
+# ============================================================
+
+def preparar_filas_cuotas_genericas(
+    datos,
+    analisis_cuotas,
+):
+
+    fecha_limite = convertir_fecha(
+        datos[
+            "fecha_limite_pago"
+        ]
+    )
+
+    cuenta = datos[
+        "cuenta"
+    ]
+
+    propuestas = []
+
+    for cuota in analisis_cuotas.get(
+        "faltantes",
+        [],
+    ):
+
+        if (
+            cuota.get(
+                "motivo"
+            )
+            != "patron_cuota"
+        ):
+            continue
+
+        if (
+            cuota.get(
+                "numero"
+            )
+            is None
+            or
+            cuota.get(
+                "plazos"
+            )
+            is None
+        ):
+            continue
+
+        movimiento = cuota[
+            "movimiento"
+        ]
+
+        try:
+
+            monto = float(
+                movimiento.get(
+                    "monto",
+                    0,
+                )
+            )
+
+        except (
+            ValueError,
+            TypeError,
+        ):
+            continue
+
+        descripcion = str(
+            movimiento.get(
+                "descripcion",
+                "",
+            )
+        ).strip()
+
+        fila = [
+            "Gasto",
+            fecha_limite.strftime(
+                "%d/%m/%Y"
+            ),
+            "",
+            monto,
+            cuenta,
+            "",
+            descripcion,
+            SUBCATEGORIA_PENDIENTE,
+            "Meses",
+            cuota[
+                "plazos"
+            ],
+            "Pendiente",
+        ]
+
+        propuestas.append(
+            {
+                "fila": fila,
+                "cuota": cuota,
+            }
+        )
+
+    return propuestas
+
+
+# ============================================================
+# REVISAR CUOTA GENÉRICA EXISTENTE
+# ============================================================
+
+def revisar_cuota_generica_existente(
+    propuesta,
+    movimientos,
+):
+
+    fila = propuesta[
+        "fila"
+    ]
+
+    fecha_pago_propuesta = (
+        convertir_fecha(
+            fila[
+                1
+            ]
+        )
+    )
+
+    monto_propuesto = float(
+        fila[
+            3
+        ]
+    )
+
+    cuenta_propuesta = (
+        normalizar_texto(
+            fila[
+                4
+            ]
+        )
+    )
+
+    descripcion_propuesta = (
+        fila[
+            6
+        ]
+    )
+
+    plazos_propuestos = int(
+        fila[
+            9
+        ]
+    )
+
+    candidatos = []
+
+    for movimiento in movimientos:
+
+        cuenta = normalizar_texto(
+            movimiento.get(
+                "Cuenta",
+                "",
+            )
+        )
+
+        if (
+            cuenta
+            != cuenta_propuesta
+        ):
+            continue
+
+        tipo_pago = normalizar_texto(
+            movimiento.get(
+                "Tipo de Pago",
+                "",
+            )
+        )
+
+        if tipo_pago != "meses":
+            continue
+
+        try:
+
+            plazos = int(
+                float(
+                    str(
+                        movimiento.get(
+                            "Numero de Plazos",
+                            0,
+                        )
+                    )
+                )
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+            continue
+
+        if (
+            plazos
+            != plazos_propuestos
+        ):
+            continue
+
+        try:
+
+            monto = convertir_monto(
+                movimiento.get(
+                    "Monto de Compra",
+                    0,
+                )
+            )
+
+        except Exception:
+            continue
+
+        if abs(
+            monto
+            - monto_propuesto
+        ) > 0.01:
+            continue
+
+        try:
+
+            fecha_pago = convertir_fecha(
+                movimiento.get(
+                    "Fecha de Pago",
+                    "",
+                )
+            )
+
+        except Exception:
+            continue
+
+        if (
+            fecha_pago.year
+            != fecha_pago_propuesta.year
+            or
+            fecha_pago.month
+            != fecha_pago_propuesta.month
+            or
+            fecha_pago.day
+            != fecha_pago_propuesta.day
+        ):
+            continue
+
+        similitud = (
+            calcular_similitud_cuota(
+                descripcion_propuesta,
+                movimiento.get(
+                    "Descripcion",
+                    "",
+                ),
+            )
+        )
+
+        candidatos.append(
+            {
+                "movimiento": movimiento,
+                "similitud": similitud,
+            }
+        )
+
+    if not candidatos:
+
+        return {
+            "estado": "nuevo",
+        }
+
+    if len(
+        candidatos
+    ) == 1:
+
+        candidato = candidatos[
+            0
+        ]
+
+        if (
+            candidato[
+                "similitud"
+            ] >= 0.20
+        ):
+
+            return {
+                "estado": "duplicado",
+                "candidato": candidato,
+            }
+
+        return {
+            "estado": "conflicto",
+            "candidatos": candidatos,
+        }
+
+    candidatos.sort(
+        key=lambda item: (
+            item[
+                "similitud"
+            ]
+        ),
+        reverse=True,
+    )
+
+    mejor = candidatos[
+        0
+    ]
+
+    segundo = candidatos[
+        1
+    ]
+
+    diferencia = (
+        mejor[
+            "similitud"
+        ]
+        - segundo[
+            "similitud"
+        ]
+    )
+
+    if (
+        mejor[
+            "similitud"
+        ] >= 0.55
+        and
+        diferencia >= 0.15
+    ):
+
+        return {
+            "estado": "duplicado",
+            "candidato": mejor,
+        }
+
+    return {
+        "estado": "conflicto",
+        "candidatos": candidatos,
+    }
+
+
+# ============================================================
+# ANALIZAR / SIMULAR ALTA DE CUOTAS
+# ============================================================
+
+def analizar_alta_cuotas_genericas(
+    datos,
+    analisis_cuotas,
+    mostrar=True,
+):
+
+    propuestas = (
+        preparar_filas_cuotas_genericas(
+            datos,
+            analisis_cuotas,
+        )
+    )
+
+    movimientos = (
+        obtener_movimientos()
+    )
+
+    nuevas = []
+    duplicadas = []
+    conflictos = []
+
+    for propuesta in propuestas:
+
+        revision = (
+            revisar_cuota_generica_existente(
+                propuesta,
+                movimientos,
+            )
+        )
+
+        estado = revision[
+            "estado"
+        ]
+
+        if estado == "nuevo":
+
+            nuevas.append(
+                propuesta
+            )
+
+        elif estado == "duplicado":
+
+            duplicadas.append(
+                {
+                    "propuesta": propuesta,
+                    "revision": revision,
+                }
+            )
+
+        else:
+
+            conflictos.append(
+                {
+                    "propuesta": propuesta,
+                    "revision": revision,
+                }
+            )
+
+    resultado = {
+        "propuestas": propuestas,
+        "nuevas": nuevas,
+        "duplicadas": duplicadas,
+        "conflictos": conflictos,
+    }
+
+    if not mostrar:
+        return resultado
+
+    print()
+
+    print(
+        "=== SIMULACIÓN DE ALTA DE CUOTAS ==="
+    )
 
     print()
 
     print(
         (
-            "Total propuesto: "
-            f"${total:,.2f}"
+            "Cuotas faltantes: "
+            f"{len(analisis_cuotas.get('faltantes', []))}"
+        )
+    )
+
+    print(
+        (
+            "Cuotas propuestas: "
+            f"{len(propuestas)}"
+        )
+    )
+
+    print(
+        (
+            "Nuevas: "
+            f"{len(nuevas)}"
+        )
+    )
+
+    print(
+        (
+            "Duplicadas: "
+            f"{len(duplicadas)}"
+        )
+    )
+
+    print(
+        (
+            "Conflictos: "
+            f"{len(conflictos)}"
+        )
+    )
+
+    if nuevas:
+
+        print()
+
+        print(
+            "🆕 CUOTAS PROPUESTAS"
+        )
+
+        print(
+            "-" * 50
+        )
+
+        for numero, propuesta in enumerate(
+            nuevas,
+            start=1,
+        ):
+
+            fila = propuesta[
+                "fila"
+            ]
+
+            cuota = propuesta[
+                "cuota"
+            ]
+
+            print()
+
+            print(
+                (
+                    f"{numero:02d}. "
+                    f"{cuota['numero']:02d}/"
+                    f"{cuota['plazos']:02d}"
+                    f" | "
+                    f"${fila[3]:,.2f}"
+                    f" | "
+                    f"{fila[6]}"
+                )
+            )
+
+            print(
+                (
+                    "    Fecha pago: "
+                    f"{fila[1]}"
+                )
+            )
+
+            print(
+                "    Fecha compra: no disponible"
+            )
+
+            print(
+                (
+                    "    Cuenta: "
+                    f"{fila[4]}"
+                )
+            )
+
+            print(
+                "    Tipo pago: Meses"
+            )
+
+            print(
+                (
+                    "    Número de plazos: "
+                    f"{fila[9]}"
+                )
+            )
+
+            print(
+                (
+                    "    Status: "
+                    f"{fila[10]}"
+                )
+            )
+
+    if duplicadas:
+
+        print()
+
+        print(
+            "✅ CUOTAS YA EXISTENTES"
+        )
+
+        print(
+            "-" * 50
+        )
+
+        for item in duplicadas:
+
+            propuesta = item[
+                "propuesta"
+            ]
+
+            revision = item[
+                "revision"
+            ]
+
+            fila = propuesta[
+                "fila"
+            ]
+
+            similitud = (
+                revision[
+                    "candidato"
+                ][
+                    "similitud"
+                ]
+            )
+
+            print(
+                (
+                    f"${fila[3]:,.2f}"
+                    f" | "
+                    f"{fila[6]}"
+                    f" | similitud "
+                    f"{similitud:.0%}"
+                )
+            )
+
+    if conflictos:
+
+        print()
+
+        print(
+            "⚠️ CUOTAS CON CONFLICTO"
+        )
+
+        print(
+            "-" * 50
+        )
+
+        for conflicto in conflictos:
+
+            propuesta = conflicto[
+                "propuesta"
+            ]
+
+            fila = propuesta[
+                "fila"
+            ]
+
+            print(
+                (
+                    f"${fila[3]:,.2f}"
+                    f" | "
+                    f"{fila[6]}"
+                )
+            )
+
+    print()
+
+    print(
+        (
+            "ℹ️ Esta fase es una simulación. "
+            "Todavía no se escribió ninguna cuota."
         )
     )
 
@@ -2120,7 +3575,210 @@ def mostrar_cargos_regulares_faltantes(
 
 
 # ============================================================
-# REVISAR CARGO REGULAR
+# 6C.4
+# APLICAR CUOTAS GENÉRICAS
+# ============================================================
+
+def aplicar_cuotas_genericas(
+    analisis_alta_cuotas,
+):
+
+    candidatos = (
+        analisis_alta_cuotas.get(
+            "nuevas",
+            [],
+        )
+    )
+
+    if not candidatos:
+
+        print()
+
+        print(
+            "✅ No hay cuotas genéricas nuevas por registrar."
+        )
+
+        return {
+            "agregadas": 0,
+            "duplicadas": 0,
+            "conflictos": 0,
+        }
+
+    # Segunda lectura justo antes de escribir.
+    # Esta es la protección contra cambios ocurridos
+    # entre la simulación y el momento de aplicar.
+
+    movimientos_actuales = (
+        obtener_movimientos()
+    )
+
+    nuevas = []
+    duplicadas = []
+    conflictos = []
+
+    for propuesta in candidatos:
+
+        revision = (
+            revisar_cuota_generica_existente(
+                propuesta,
+                movimientos_actuales,
+            )
+        )
+
+        estado = revision[
+            "estado"
+        ]
+
+        if estado == "nuevo":
+
+            nuevas.append(
+                propuesta
+            )
+
+        elif estado == "duplicado":
+
+            duplicadas.append(
+                {
+                    "propuesta": propuesta,
+                    "revision": revision,
+                }
+            )
+
+        else:
+
+            conflictos.append(
+                {
+                    "propuesta": propuesta,
+                    "revision": revision,
+                }
+            )
+
+    print()
+
+    print(
+        "=== PREVALIDACIÓN FINAL DE CUOTAS ==="
+    )
+
+    print()
+
+    print(
+        (
+            "Candidatos: "
+            f"{len(candidatos)}"
+        )
+    )
+
+    print(
+        (
+            "Ya existentes: "
+            f"{len(duplicadas)}"
+        )
+    )
+
+    print(
+        (
+            "Conflictos: "
+            f"{len(conflictos)}"
+        )
+    )
+
+    print(
+        (
+            "Nuevas seguras: "
+            f"{len(nuevas)}"
+        )
+    )
+
+    # Política all-or-nothing:
+    # si aparece un conflicto, no escribimos ninguna
+    # cuota nueva en este bloque.
+
+    if conflictos:
+
+        print()
+
+        print(
+            "🛑 ALTA DE CUOTAS CANCELADA"
+        )
+
+        print(
+            (
+                "Existe al menos un conflicto. "
+                "No se escribió ninguna cuota."
+            )
+        )
+
+        return {
+            "agregadas": 0,
+            "duplicadas": len(
+                duplicadas
+            ),
+            "conflictos": len(
+                conflictos
+            ),
+        }
+
+    if not nuevas:
+
+        print()
+
+        print(
+            "✅ No hay cuotas nuevas que escribir."
+        )
+
+        return {
+            "agregadas": 0,
+            "duplicadas": len(
+                duplicadas
+            ),
+            "conflictos": 0,
+        }
+
+    filas = [
+        propuesta[
+            "fila"
+        ]
+        for propuesta
+        in nuevas
+    ]
+
+    registrar_movimientos(
+        filas
+    )
+
+    print()
+
+    print(
+        "✅ CUOTAS GENÉRICAS REGISTRADAS"
+    )
+
+    print(
+        (
+            "Filas agregadas: "
+            f"{len(filas)}"
+        )
+    )
+
+    print(
+        (
+            "Monto agregado: "
+            f"${sum(float(fila[3]) for fila in filas):,.2f}"
+        )
+    )
+
+    return {
+        "agregadas": len(
+            filas
+        ),
+        "duplicadas": len(
+            duplicadas
+        ),
+        "conflictos": 0,
+    }
+
+
+# ============================================================
+# REVISAR CARGO REGULAR EXISTENTE
 # ============================================================
 
 def revisar_cargo_regular_existente(
@@ -2174,7 +3832,6 @@ def revisar_cargo_regular_existente(
         )
 
         if cuenta != cuenta_propuesta:
-
             continue
 
         tipo_pago = normalizar_texto(
@@ -2185,7 +3842,6 @@ def revisar_cargo_regular_existente(
         )
 
         if tipo_pago != "contado":
-
             continue
 
         try:
@@ -2205,11 +3861,9 @@ def revisar_cargo_regular_existente(
             TypeError,
             ValueError,
         ):
-
             continue
 
         if plazos != 1:
-
             continue
 
         try:
@@ -2222,14 +3876,12 @@ def revisar_cargo_regular_existente(
             )
 
         except Exception:
-
             continue
 
         if abs(
             monto
             - monto_propuesto
         ) > 0.01:
-
             continue
 
         fecha_compra_valor = (
@@ -2242,7 +3894,6 @@ def revisar_cargo_regular_existente(
         if not str(
             fecha_compra_valor
         ).strip():
-
             continue
 
         try:
@@ -2254,7 +3905,6 @@ def revisar_cargo_regular_existente(
             )
 
         except Exception:
-
             continue
 
         if (
@@ -2267,23 +3917,23 @@ def revisar_cargo_regular_existente(
             fecha_compra.day
             != fecha_compra_propuesta.day
         ):
-
             continue
 
         coincidencias.append(
             movimiento
         )
 
-    if len(coincidencias) == 0:
+    if len(
+        coincidencias
+    ) == 0:
 
         return {
             "estado": "nuevo",
         }
 
-    # Si solo hay una coincidencia,
-    # comprobamos la descripción.
-
-    if len(coincidencias) == 1:
+    if len(
+        coincidencias
+    ) == 1:
 
         existente = coincidencias[
             0
@@ -2315,10 +3965,6 @@ def revisar_cargo_regular_existente(
             ],
         }
 
-    # Más de una fila con mismo
-    # banco + fecha + monto:
-    # no adivinamos.
-
     return {
         "estado": "conflicto",
         "movimientos": coincidencias,
@@ -2326,7 +3972,7 @@ def revisar_cargo_regular_existente(
 
 
 # ============================================================
-# PROTECCIÓN REGULARES
+# PROTECCIÓN DE REGULARES
 # ============================================================
 
 def analizar_proteccion_regulares(
@@ -2342,12 +3988,9 @@ def analizar_proteccion_regulares(
 
     duplicados = []
     conflictos = []
-    nuevos_alta = []
-    nuevos_media = []
-    nuevos_baja = []
+    nuevos = []
 
     for item in propuestas:
-
         revision = (
             revisar_cargo_regular_existente(
                 item,
@@ -2360,67 +4003,40 @@ def analizar_proteccion_regulares(
         ]
 
         if estado == "duplicado":
-
             duplicados.append(
                 {
                     "item": item,
                     "revision": revision,
                 }
             )
-
             continue
 
         if estado == "conflicto":
-
             conflictos.append(
                 {
                     "item": item,
                     "revision": revision,
                 }
             )
-
             continue
 
-        confianza = item[
-            "confianza"
+        nuevos.append(
+            item
+        )
+
+    requieren_revision = [
+        conflicto[
+            "item"
         ]
-
-        if confianza == "Alta":
-
-            nuevos_alta.append(
-                item
-            )
-
-        elif confianza == "Media":
-
-            nuevos_media.append(
-                item
-            )
-
-        else:
-
-            nuevos_baja.append(
-                item
-            )
-
-    requieren_revision = (
-        nuevos_media
-        + nuevos_baja
-        + [
-            conflicto["item"]
-            for conflicto
-            in conflictos
-        ]
-    )
+        for conflicto
+        in conflictos
+    ]
 
     return {
         "propuestas": propuestas,
         "duplicados": duplicados,
         "conflictos": conflictos,
-        "nuevos_alta": nuevos_alta,
-        "nuevos_media": nuevos_media,
-        "nuevos_baja": nuevos_baja,
-        "autoimportables": nuevos_alta,
+        "autoimportables": nuevos,
         "requieren_revision": (
             requieren_revision
         ),
@@ -2428,7 +4044,7 @@ def analizar_proteccion_regulares(
 
 
 # ============================================================
-# MOSTRAR PROTECCIÓN REGULARES
+# MOSTRAR PROTECCIÓN DE REGULARES
 # ============================================================
 
 def mostrar_proteccion_regulares(
@@ -2442,83 +4058,38 @@ def mostrar_proteccion_regulares(
     )
 
     print()
-
     print(
         "=== PROTECCIÓN DE CARGOS REGULARES ==="
     )
-
     print()
 
     print(
-        (
-            "Propuestos: "
-            f"{len(proteccion['propuestas'])}"
-        )
+        "Propuestos: "
+        f"{len(proteccion['propuestas'])}"
     )
 
     print(
-        (
-            "Duplicados: "
-            f"{len(proteccion['duplicados'])}"
-        )
+        "Duplicados: "
+        f"{len(proteccion['duplicados'])}"
     )
 
     print(
-        (
-            "Conflictos: "
-            f"{len(proteccion['conflictos'])}"
-        )
-    )
-
-    print()
-
-    print(
-        (
-            "Nuevos confianza alta: "
-            f"{len(proteccion['nuevos_alta'])}"
-        )
+        "Conflictos: "
+        f"{len(proteccion['conflictos'])}"
     )
 
     print(
-        (
-            "Nuevos confianza media: "
-            f"{len(proteccion['nuevos_media'])}"
-        )
-    )
-
-    print(
-        (
-            "Nuevos confianza baja: "
-            f"{len(proteccion['nuevos_baja'])}"
-        )
-    )
-
-    print()
-
-    print(
-        (
-            "Autoimportables: "
-            f"{len(proteccion['autoimportables'])}"
-        )
-    )
-
-    print(
-        (
-            "Requieren revisión: "
-            f"{len(proteccion['requieren_revision'])}"
-        )
+        "Listos para importar: "
+        f"{len(proteccion['autoimportables'])}"
     )
 
     if proteccion[
         "autoimportables"
     ]:
-
         print()
-
         print(
-            "✅ AUTOIMPORTABLES"
+            "✅ MOVIMIENTOS NUEVOS"
         )
-
         print(
             "-" * 50
         )
@@ -2526,85 +4097,42 @@ def mostrar_proteccion_regulares(
         for item in proteccion[
             "autoimportables"
         ]:
-
             fila = item[
                 "fila"
             ]
 
             print(
-                (
-                    f"${fila[3]:,.2f}"
-                    f" | "
-                    f"{fila[6]}"
-                    f" | "
-                    f"{item['categoria']}"
-                )
+                f"${fila[3]:,.2f} | "
+                f"{fila[6]} | "
+                f"{SUBCATEGORIA_PENDIENTE}"
             )
 
     if proteccion[
-        "nuevos_media"
+        "conflictos"
     ]:
-
         print()
-
         print(
-            "🟡 CONFIANZA MEDIA"
+            "❌ CONFLICTOS"
         )
-
         print(
             "-" * 50
         )
 
-        for item in proteccion[
-            "nuevos_media"
+        for conflicto in proteccion[
+            "conflictos"
         ]:
-
-            fila = item[
+            fila = conflicto[
+                "item"
+            ][
                 "fila"
             ]
 
             print(
-                (
-                    f"${fila[3]:,.2f}"
-                    f" | "
-                    f"{fila[6]}"
-                    f" | "
-                    f"{item['categoria']}"
-                )
-            )
-
-    if proteccion[
-        "nuevos_baja"
-    ]:
-
-        print()
-
-        print(
-            "⚠️ CONFIANZA BAJA"
-        )
-
-        print(
-            "-" * 50
-        )
-
-        for item in proteccion[
-            "nuevos_baja"
-        ]:
-
-            fila = item[
-                "fila"
-            ]
-
-            print(
-                (
-                    f"${fila[3]:,.2f}"
-                    f" | "
-                    f"{fila[6]}"
-                )
+                f"${fila[3]:,.2f} | "
+                f"{fila[6]}"
             )
 
     print()
-
     print(
         "ℹ️ La protección no escribió nada."
     )
@@ -2613,7 +4141,6 @@ def mostrar_proteccion_regulares(
 
 
 # ============================================================
-# PASO 6C
 # APLICAR REGULARES AUTOIMPORTABLES
 # ============================================================
 
@@ -2629,14 +4156,9 @@ def aplicar_regulares_autoimportables(
     )
 
     if not candidatos:
-
         print()
-
         print(
-            (
-                "✅ No hay cargos regulares "
-                "autoimportables."
-            )
+            "✅ No hay cargos regulares nuevos por registrar."
         )
 
         return {
@@ -2644,12 +4166,6 @@ def aplicar_regulares_autoimportables(
             "duplicadas": 0,
             "conflictos": 0,
         }
-
-    # Segunda lectura de Sheets.
-    #
-    # No confiamos ciegamente en el análisis
-    # que hicimos unos milisegundos antes.
-    # La paranoia moderada es saludable aquí.
 
     movimientos_actuales = (
         obtener_movimientos()
@@ -2660,7 +4176,6 @@ def aplicar_regulares_autoimportables(
     conflictos = []
 
     for item in candidatos:
-
         revision = (
             revisar_cargo_regular_existente(
                 item,
@@ -2673,22 +4188,18 @@ def aplicar_regulares_autoimportables(
         ]
 
         if estado == "duplicado":
-
             duplicadas.append(
                 item
             )
-
             continue
 
         if estado == "conflicto":
-
             conflictos.append(
                 {
                     "item": item,
                     "revision": revision,
                 }
             )
-
             continue
 
         nuevas.append(
@@ -2696,65 +4207,41 @@ def aplicar_regulares_autoimportables(
         )
 
     print()
-
     print(
         "=== PREVALIDACIÓN FINAL DE REGULARES ==="
     )
-
     print()
 
     print(
-        (
-            "Candidatos: "
-            f"{len(candidatos)}"
-        )
+        "Candidatos: "
+        f"{len(candidatos)}"
     )
 
     print(
-        (
-            "Ya existentes: "
-            f"{len(duplicadas)}"
-        )
+        "Ya existentes: "
+        f"{len(duplicadas)}"
     )
 
     print(
-        (
-            "Conflictos: "
-            f"{len(conflictos)}"
-        )
+        "Conflictos: "
+        f"{len(conflictos)}"
     )
 
     print(
-        (
-            "Nuevos seguros: "
-            f"{len(nuevas)}"
-        )
+        "Nuevos seguros: "
+        f"{len(nuevas)}"
     )
 
     if conflictos:
-
         print()
-
         print(
-            "⚠️ Hay conflictos."
-        )
-
-        print(
-            (
-                "Esos cargos NO serán "
-                "registrados."
-            )
+            "⚠️ Los conflictos NO serán registrados."
         )
 
     if not nuevas:
-
         print()
-
         print(
-            (
-                "✅ No hay cargos regulares "
-                "nuevos que escribir."
-            )
+            "✅ No hay cargos regulares nuevos que escribir."
         )
 
         return {
@@ -2780,23 +4267,23 @@ def aplicar_regulares_autoimportables(
     )
 
     print()
-
     print(
         "✅ CARGOS REGULARES REGISTRADOS"
     )
 
     print(
-        (
-            "Filas agregadas: "
-            f"{len(filas)}"
-        )
+        "Filas agregadas: "
+        f"{len(filas)}"
     )
 
     print(
-        (
-            "Monto agregado: "
-            f"${sum(float(fila[3]) for fila in filas):,.2f}"
-        )
+        "Monto agregado: "
+        f"${sum(float(fila[3]) for fila in filas):,.2f}"
+    )
+
+    print(
+        "Subcategoría inicial: "
+        f"{SUBCATEGORIA_PENDIENTE}"
     )
 
     return {
@@ -2810,6 +4297,48 @@ def aplicar_regulares_autoimportables(
             conflictos
         ),
     }
+
+
+# ============================================================
+# RECALCULAR ANÁLISIS DESDE CONCILIACIÓN ACTUAL
+# ============================================================
+
+def recalcular_analisis_actual(
+    datos,
+    conciliacion,
+    analisis_msi,
+):
+
+    analisis_regulares = (
+        preparar_cargos_regulares_faltantes(
+            datos,
+            conciliacion,
+            analisis_msi,
+        )
+    )
+
+    (
+        analisis_cuotas,
+        conciliacion,
+    ) = conciliar_cuotas_genericas(
+        datos,
+        conciliacion,
+        analisis_regulares,
+        mostrar=False,
+    )
+
+    proteccion_regulares = (
+        analizar_proteccion_regulares(
+            analisis_regulares
+        )
+    )
+
+    return (
+        conciliacion,
+        analisis_regulares,
+        analisis_cuotas,
+        proteccion_regulares,
+    )
 
 
 # ============================================================
@@ -3076,7 +4605,7 @@ def importar_estado(
     )
 
     # ========================================================
-    # VALIDAR ESTADO
+    # VALIDACIÓN
     # ========================================================
 
     validacion = validar_estado(
@@ -3110,6 +4639,19 @@ def importar_estado(
                 ),
             )
         )
+
+        diferencia = validacion.get(
+            "diferencia"
+        )
+
+        if diferencia is not None:
+
+            print(
+                (
+                    "Diferencia: "
+                    f"${diferencia:,.2f}"
+                )
+            )
 
         print()
 
@@ -3166,7 +4708,7 @@ def importar_estado(
     )
 
     # ========================================================
-    # MSI
+    # MSI BBVA
     # ========================================================
 
     analisis_msi = (
@@ -3232,22 +4774,145 @@ def importar_estado(
         )
     )
 
-    proteccion_regulares = (
-        mostrar_proteccion_regulares(
-            analisis_regulares
+    # ========================================================
+    # CUOTAS MULTIBANCO
+    # ========================================================
+
+    (
+        analisis_cuotas,
+        conciliacion,
+    ) = conciliar_cuotas_genericas(
+        datos,
+        conciliacion,
+        analisis_regulares,
+        mostrar=True,
+    )
+
+    # ========================================================
+    # SIMULACIÓN / PREVALIDACIÓN DE CUOTAS
+    # ========================================================
+
+    analisis_alta_cuotas = (
+        analizar_alta_cuotas_genericas(
+            datos,
+            analisis_cuotas,
+            mostrar=True,
         )
     )
 
-    resultado_regulares = {
+    resultado_cuotas = {
         "agregadas": 0,
         "duplicadas": 0,
         "conflictos": 0,
     }
 
     # ========================================================
-    # PASO 6C
-    # AUTOIMPORTACIÓN DE CONFIANZA ALTA
+    # 6C.4
+    # APLICAR CUOTAS GENÉRICAS
     # ========================================================
+
+    if aplicar:
+
+        resultado_cuotas = (
+            aplicar_cuotas_genericas(
+                analisis_alta_cuotas
+            )
+        )
+
+        if resultado_cuotas[
+            "agregadas"
+        ] > 0:
+
+            print()
+
+            print(
+                "=== RECONCILIACIÓN DESPUÉS DE CUOTAS ==="
+            )
+
+            print()
+
+            conciliacion = (
+                conciliar_con_sheets(
+                    datos,
+                    movimientos_banco,
+                )
+            )
+
+            mostrar_resumen_conciliacion(
+                conciliacion
+            )
+
+            (
+                conciliacion,
+                analisis_regulares,
+                analisis_cuotas,
+                proteccion_regulares,
+            ) = recalcular_analisis_actual(
+                datos,
+                conciliacion,
+                analisis_msi,
+            )
+
+        else:
+
+            proteccion_regulares = (
+                analizar_proteccion_regulares(
+                    analisis_regulares
+                )
+            )
+
+    else:
+
+        proteccion_regulares = (
+            mostrar_proteccion_regulares(
+                analisis_regulares
+            )
+        )
+
+    # ========================================================
+    # EN MODO APLICAR MOSTRAR PROTECCIÓN ACTUALIZADA
+    # ========================================================
+
+    if aplicar:
+
+        print()
+
+        print(
+            "=== CARGOS REGULARES ACTUALIZADOS ==="
+        )
+
+        print()
+
+        print(
+            (
+                "Propuestos: "
+                f"{len(proteccion_regulares['propuestas'])}"
+            )
+        )
+
+        print(
+            (
+                "Listos para importar: "
+                f"{len(proteccion_regulares['autoimportables'])}"
+            )
+        )
+
+        print(
+            (
+                "Conflictos por revisar: "
+                f"{len(proteccion_regulares['requieren_revision'])}"
+            )
+        )
+
+    # ========================================================
+    # REGULARES NUEVOS
+    # ========================================================
+
+    resultado_regulares = {
+        "agregadas": 0,
+        "duplicadas": 0,
+        "conflictos": 0,
+    }
 
     if aplicar:
 
@@ -3276,12 +4941,23 @@ def importar_estado(
                 )
             )
 
+            (
+                conciliacion,
+                analisis_regulares,
+                analisis_cuotas,
+                proteccion_regulares,
+            ) = recalcular_analisis_actual(
+                datos,
+                conciliacion,
+                analisis_msi,
+            )
+
             mostrar_resumen_conciliacion(
                 conciliacion
             )
 
     # ========================================================
-    # DIFERENCIAS FINALES
+    # DIFERENCIAS
     # ========================================================
 
     mostrar_detalle_diferencias(
@@ -3312,9 +4988,45 @@ def importar_estado(
         )
 
     hay_problema_msi = (
-        len(invalidos_msi) > 0
+        len(
+            invalidos_msi
+        ) > 0
         or
         resultado_msi[
+            "conflictos"
+        ] > 0
+    )
+
+    # ========================================================
+    # SEGURIDAD CUOTAS GENÉRICAS
+    # ========================================================
+
+    cuotas_faltantes = (
+        analisis_cuotas.get(
+            "faltantes",
+            [],
+        )
+    )
+
+    cuotas_ambiguas = (
+        analisis_cuotas.get(
+            "ambiguas",
+            [],
+        )
+    )
+
+    hay_cuotas_sin_resolver = (
+        len(
+            cuotas_faltantes
+        ) > 0
+        or
+        len(
+            cuotas_ambiguas
+        ) > 0
+    )
+
+    hay_conflicto_cuotas = (
+        resultado_cuotas[
             "conflictos"
         ] > 0
     )
@@ -3354,6 +5066,8 @@ def importar_estado(
             "conciliado"
         ]
         and not hay_problema_msi
+        and not hay_cuotas_sin_resolver
+        and not hay_conflicto_cuotas
         and not hay_revision_regulares
         and not hay_conflicto_regulares
     ):
@@ -3407,17 +5121,42 @@ def importar_estado(
                 )
             )
 
+        if hay_cuotas_sin_resolver:
+
+            print(
+                (
+                    "Cuotas faltantes: "
+                    f"{len(cuotas_faltantes)}"
+                )
+            )
+
+            print(
+                (
+                    "Cuotas ambiguas: "
+                    f"{len(cuotas_ambiguas)}"
+                )
+            )
+
+        if hay_conflicto_cuotas:
+
+            print(
+                (
+                    "Conflictos de cuotas: "
+                    f"{resultado_cuotas['conflictos']}"
+                )
+            )
+
         if hay_revision_regulares:
 
             print(
                 (
-                    "Regulares por revisar: "
+                    "Conflictos regulares: "
                     f"{len(proteccion_regulares['requieren_revision'])}"
                 )
             )
 
     # ========================================================
-    # ESTADOS CUENTA
+    # ESTADOS DE CUENTA
     # ========================================================
 
     estados_existentes = (
@@ -3431,7 +5170,7 @@ def importar_estado(
     )
 
     # ========================================================
-    # YA EXISTE
+    # ESTADO EXISTENTE
     # ========================================================
 
     if existente is not None:
@@ -3699,7 +5438,9 @@ def main():
         )
     ]
 
-    if len(rutas) != 1:
+    if len(
+        rutas
+    ) != 1:
 
         print(
             "Uso:"
@@ -3727,11 +5468,12 @@ def main():
         return
 
     importar_estado(
-        rutas[0],
+        rutas[
+            0
+        ],
         aplicar=aplicar,
     )
 
 
 if __name__ == "__main__":
-
     main()

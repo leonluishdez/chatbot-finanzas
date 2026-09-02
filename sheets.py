@@ -118,6 +118,150 @@ def registrar_movimientos(
 
 
 # ============================================================
+# MOVIMIENTOS SIN CLASIFICAR
+# ============================================================
+
+def obtener_movimientos_sin_clasificar():
+
+    hoja = obtener_hoja()
+    valores = hoja.get_all_values()
+
+    if not valores:
+        return []
+
+    encabezados = [
+        str(valor).strip()
+        for valor in valores[0]
+    ]
+
+    if "Subcategoria" not in encabezados:
+        raise RuntimeError(
+            "No existe la columna Subcategoria "
+            "en la hoja Movimientos."
+        )
+
+    pendientes = []
+
+    for numero_fila, fila in enumerate(
+        valores[1:],
+        start=2
+    ):
+
+        movimiento = {}
+
+        for indice, encabezado in enumerate(
+            encabezados
+        ):
+
+            if indice < len(fila):
+                valor = fila[indice]
+            else:
+                valor = ""
+
+            movimiento[
+                encabezado
+            ] = valor
+
+        subcategoria = str(
+            movimiento.get(
+                "Subcategoria",
+                ""
+            )
+        ).strip().lower()
+
+        tipo_movimiento = str(
+            movimiento.get(
+                "Tipo de Movimiento",
+                ""
+            )
+        ).strip().lower()
+
+        if (
+            subcategoria == "sin clasificar"
+            and tipo_movimiento == "gasto"
+        ):
+
+            movimiento[
+                "_fila"
+            ] = numero_fila
+
+            pendientes.append(
+                movimiento
+            )
+
+    return pendientes
+
+
+def actualizar_subcategoria_movimiento(
+    numero_fila,
+    nueva_subcategoria
+):
+
+    if not nueva_subcategoria:
+        raise ValueError(
+            "La subcategoría no puede estar vacía."
+        )
+
+    try:
+        numero_fila = int(
+            numero_fila
+        )
+    except (
+        TypeError,
+        ValueError
+    ) as error:
+        raise ValueError(
+            "El número de fila no es válido."
+        ) from error
+
+    if numero_fila < 2:
+        raise ValueError(
+            "No se puede modificar la fila de encabezados."
+        )
+
+    hoja = obtener_hoja()
+    encabezados = hoja.row_values(
+        1
+    )
+
+    if "Subcategoria" not in encabezados:
+        raise RuntimeError(
+            "No existe la columna Subcategoria "
+            "en la hoja Movimientos."
+        )
+
+    columna_subcategoria = (
+        encabezados.index(
+            "Subcategoria"
+        )
+        + 1
+    )
+
+    subcategoria_actual = str(
+        hoja.cell(
+            numero_fila,
+            columna_subcategoria
+        ).value
+        or ""
+    ).strip()
+
+    if (
+        subcategoria_actual.lower()
+        != "sin clasificar"
+    ):
+
+        return False
+
+    hoja.update_cell(
+        numero_fila,
+        columna_subcategoria,
+        nueva_subcategoria
+    )
+
+    return True
+
+
+# ============================================================
 # HOJA: ESTADOS DE CUENTA
 # ============================================================
 
