@@ -1,3 +1,5 @@
+from datetime import datetime
+from finanzas import convertir_fecha
 import json
 import os
 from functools import lru_cache
@@ -98,7 +100,10 @@ def registrar_movimiento(
     fila
 ):
 
-    obtener_hoja().append_row(
+    hoja = obtener_hoja()
+    fila = preparar_fechas_fila(fila, (1, 2))
+    hoja.format("B:C", {"numberFormat": {"type": "DATE", "pattern": "dd/m/yy"}})
+    hoja.append_row(
         fila,
         value_input_option="USER_ENTERED"
     )
@@ -111,7 +116,10 @@ def registrar_movimientos(
     if not filas:
         return
 
-    obtener_hoja().append_rows(
+    hoja = obtener_hoja()
+    filas = [preparar_fechas_fila(fila, (1, 2)) for fila in filas]
+    hoja.format("B:C", {"numberFormat": {"type": "DATE", "pattern": "dd/m/yy"}})
+    hoja.append_rows(
         filas,
         value_input_option="USER_ENTERED"
     )
@@ -285,7 +293,10 @@ def registrar_estado_cuenta(
     fila
 ):
 
-    obtener_hoja_estados_cuenta().append_row(
+    hoja = obtener_hoja_estados_cuenta()
+    fila = preparar_fechas_fila(fila, (2, 3))
+    hoja.format("C:D", {"numberFormat": {"type": "DATE", "pattern": "dd/m/yy"}})
+    hoja.append_row(
         fila,
         value_input_option="USER_ENTERED"
     )
@@ -298,7 +309,26 @@ def registrar_estados_cuenta(
     if not filas:
         return
 
-    obtener_hoja_estados_cuenta().append_rows(
+    hoja = obtener_hoja_estados_cuenta()
+    filas = [preparar_fechas_fila(fila, (2, 3)) for fila in filas]
+    hoja.format("C:D", {"numberFormat": {"type": "DATE", "pattern": "dd/m/yy"}})
+    hoja.append_rows(
         filas,
         value_input_option="USER_ENTERED"
     )
+
+
+def preparar_fechas_fila(fila, indices):
+    """Fechas nativas de Sheets sin depender de su configuración regional.
+
+    El formato visual se aplica antes de escribir. Conserva vacíos y no muta
+    la fila original. El resto de valores mantiene su tratamiento anterior.
+    """
+    resultado = list(fila)
+    for indice in indices:
+        valor = resultado[indice]
+        if valor is None or str(valor).strip() == "":
+            continue
+        fecha = convertir_fecha(valor)
+        resultado[indice] = (datetime(fecha.year, fecha.month, fecha.day) - datetime(1899, 12, 30)).days
+    return resultado

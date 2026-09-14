@@ -3,3 +3,6 @@ service_account.json
 .venv/
 __pycache__/
 estados/.DS_Store
+
+# Datos locales de gastos recurrentes
+.datos/

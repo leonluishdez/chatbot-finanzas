@@ -1,3 +1,4 @@
+from finanzas import formatear_fecha
 import json
 import re
 import sys
@@ -477,9 +478,7 @@ def extraer_datos_estado(
             None
             if fecha_corte is None
             else (
-                f"{fecha_corte['dia']}/"
-                f"{fecha_corte['mes']}/"
-                f"{fecha_corte['anio']}"
+                formatear_fecha(f"{fecha_corte['dia']}/{fecha_corte['mes']}/{fecha_corte['anio']}")
             )
         ),
 
@@ -487,9 +486,7 @@ def extraer_datos_estado(
             None
             if fecha_limite is None
             else (
-                f"{fecha_limite['dia']}/"
-                f"{fecha_limite['mes']}/"
-                f"{fecha_limite['anio']}"
+                formatear_fecha(f"{fecha_limite['dia']}/{fecha_limite['mes']}/{fecha_limite['anio']}")
             )
         ),
 

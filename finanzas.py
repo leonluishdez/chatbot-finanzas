@@ -2401,3 +2401,10 @@ def calcular_promedio_ingresos_recientes(movimientos, meses=3, hoy=None):
         except (ValueError, TypeError):
             continue
     return float((total / meses).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+
+def formatear_fecha(fecha):
+    """Día de dos dígitos, mes sin cero inicial y año de dos dígitos."""
+    if not isinstance(fecha, datetime):
+        fecha = convertir_fecha(fecha)
+    return f"{fecha.day:02d}/{fecha.month}/{fecha.year % 100:02d}"

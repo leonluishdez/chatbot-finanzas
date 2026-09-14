@@ -1,4 +1,8 @@
+from finanzas import formatear_fecha
 import os
+
+from recurrentes import leer_reglas, generar_vencimientos, procesar_comando
+from recurrentes_guiado import manejar_texto_recurrente, manejar_boton_recurrente
 
 from datetime import datetime
 
@@ -348,7 +352,7 @@ def crear_resumen_confirmacion(
             resumen += (
                 "\n"
                 "Corte aplicable: "
-                f"{fecha_corte.strftime('%d/%m/%Y')}"
+                f"{formatear_fecha(fecha_corte)}"
             )
 
         if fecha_pago is not None:
@@ -367,7 +371,7 @@ def crear_resumen_confirmacion(
 
             resumen += (
                 f"\n{etiqueta}: "
-                f"{fecha_pago.strftime('%d/%m/%Y')}"
+                f"{formatear_fecha(fecha_pago)}"
             )
 
         if plazos > 1:
@@ -550,7 +554,7 @@ def crear_resumen_mensualidades(
                     f"${cargo['monto']:,.2f} "
 
                     f"("
-                    f"{cargo['fecha'].strftime('%d/%m/%Y')}"
+                    f"{formatear_fecha(cargo['fecha'])}"
                     f")"
                 )
             )
@@ -597,7 +601,8 @@ def crear_resumen_proyeccion(
     status=None,
     tipo_pago=None,
     tipo_movimiento="Gasto",
-    hoy=None
+    hoy=None,
+    reglas_recurrentes=None
 ):
 
     hoy = hoy or datetime.now()
@@ -615,6 +620,12 @@ def crear_resumen_proyeccion(
         calcular_promedio_ingresos_recientes(movimientos, hoy=hoy)
         if es_proyeccion else 0.0
     )
+
+    estimaciones = []
+    if es_proyeccion:
+        reglas = leer_reglas() if reglas_recurrentes is None else reglas_recurrentes
+        estimaciones = generar_vencimientos(reglas, movimientos, periodos, hoy=hoy)
+        movimientos = list(movimientos) + estimaciones
 
     resultados = []
 
@@ -651,6 +662,12 @@ def crear_resumen_proyeccion(
         )
 
 
+        total_recurrente = calcular_total(
+            estimaciones, mes=numero_mes, anio=anio, subcategoria=subcategoria,
+            cuenta=cuenta, status=status, tipo_pago=tipo_pago,
+            tipo_movimiento=tipo_movimiento
+        )
+
         resultados.append(
             {
                 "mes": numero_mes,
@@ -658,6 +675,7 @@ def crear_resumen_proyeccion(
                 "anio": anio,
 
                 "total": total_mes,
+                "recurrente": total_recurrente,
             }
         )
 
@@ -739,6 +757,8 @@ def crear_resumen_proyeccion(
                 f"Disponible estimado: ${ingreso_estimado - resultado['total']:,.2f}",
                 "",
             ])
+            if resultado['recurrente']:
+                lineas.insert(-1, f"Incluye recurrentes estimados: ${resultado['recurrente']:,.2f}")
             continue
 
         lineas.append(
@@ -915,18 +935,10 @@ async def registrar_estado_desde_mensaje(
     )
 
 
-    fecha_corte_texto = (
-        f"{fecha_corte.day}/"
-        f"{fecha_corte.month}/"
-        f"{fecha_corte.year}"
-    )
+    fecha_corte_texto = formatear_fecha(fecha_corte)
 
 
-    fecha_pago_texto = (
-        f"{fecha_pago.day}/"
-        f"{fecha_pago.month}/"
-        f"{fecha_pago.year}"
-    )
+    fecha_pago_texto = formatear_fecha(fecha_pago)
 
 
     # ========================================================
@@ -1010,10 +1022,10 @@ async def registrar_estado_desde_mensaje(
             f"{periodo}\n"
 
             "Fecha de corte: "
-            f"{fecha_corte.strftime('%d/%m/%Y')}\n"
+            f"{formatear_fecha(fecha_corte)}\n"
 
             "Fecha límite: "
-            f"{fecha_pago.strftime('%d/%m/%Y')}\n\n"
+            f"{formatear_fecha(fecha_pago)}\n\n"
 
             "Banco: "
             f"${monto_banco:,.2f}\n"
@@ -1695,6 +1707,9 @@ async def responder_mensaje(
         update.message.text.strip()
     )
 
+
+    if await manejar_texto_recurrente(update, context, CUENTAS_GASTO, CATEGORIAS_GASTO):
+        return
 
     # ========================================================
     # DESCRIPCIÓN PENDIENTE
@@ -2864,11 +2879,7 @@ async def confirmar_gasto(
     )
 
 
-    fecha_compra_texto = (
-        f"{fecha_compra.day}/"
-        f"{fecha_compra.month}/"
-        f"{fecha_compra.year}"
-    )
+    fecha_compra_texto = formatear_fecha(fecha_compra)
 
 
     plazos = datos.get(
@@ -2923,11 +2934,7 @@ async def confirmar_gasto(
                 ]
 
 
-                fecha_pago_texto = (
-                    f"{fecha_pago.day}/"
-                    f"{fecha_pago.month}/"
-                    f"{fecha_pago.year}"
-                )
+                fecha_pago_texto = formatear_fecha(fecha_pago)
 
 
                 fila = [
@@ -3010,11 +3017,7 @@ async def confirmar_gasto(
                 )
 
 
-            fecha_pago_texto = (
-                f"{fecha_pago.day}/"
-                f"{fecha_pago.month}/"
-                f"{fecha_pago.year}"
-            )
+            fecha_pago_texto = formatear_fecha(fecha_pago)
 
 
             fila = [
@@ -3172,18 +3175,18 @@ async def confirmar_gasto(
 
                 respuesta += (
                     "Corte aplicable: "
-                    f"{fecha_corte.strftime('%d/%m/%Y')}"
+                    f"{formatear_fecha(fecha_corte)}"
                     "\n"
                 )
 
 
             respuesta += (
                 "Primer pago: "
-                f"{primera_cuota['fecha'].strftime('%d/%m/%Y')}"
+                f"{formatear_fecha(primera_cuota['fecha'])}"
                 "\n"
 
                 "Último pago: "
-                f"{ultima_cuota['fecha'].strftime('%d/%m/%Y')}"
+                f"{formatear_fecha(ultima_cuota['fecha'])}"
                 "\n\n"
 
                 f"Se crearon "
@@ -3239,7 +3242,7 @@ async def confirmar_gasto(
                 "Status: Pendiente\n"
 
                 "Fecha de compra: "
-                f"{fecha_compra.strftime('%d/%m/%Y')}\n"
+                f"{formatear_fecha(fecha_compra)}\n"
             )
 
 
@@ -3247,14 +3250,14 @@ async def confirmar_gasto(
 
                 respuesta += (
                     "Corte aplicable: "
-                    f"{fecha_corte.strftime('%d/%m/%Y')}"
+                    f"{formatear_fecha(fecha_corte)}"
                     "\n"
                 )
 
 
             respuesta += (
                 "Fecha de pago: "
-                f"{fecha_pago.strftime('%d/%m/%Y')}"
+                f"{formatear_fecha(fecha_pago)}"
             )
 
 
@@ -3370,6 +3373,23 @@ async def manejar_error(
 # MAIN
 # ============================================================
 
+async def manejar_recurrentes(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message is None:
+        return
+    try:
+        respuesta = procesar_comando(update.message.text)
+    except ValueError as error:
+        respuesta = str(error) + "\n/recurrentes ayuda"
+    except Exception:
+        respuesta = "No se pudo acceder a las reglas recurrentes. Revisa el almacenamiento local antes de reintentar."
+    for inicio in range(0, len(respuesta), 3500):
+        await update.message.reply_text(respuesta[inicio:inicio + 3500])
+
+
+async def botones_recurrentes(update, context):
+    await manejar_boton_recurrente(update, context, CUENTAS_GASTO, CATEGORIAS_GASTO)
+
+
 def main():
 
     if not TOKEN:
@@ -3390,6 +3410,9 @@ def main():
         .build()
     )
 
+
+    app.add_handler(CommandHandler("recurrentes", manejar_recurrentes))
+    app.add_handler(CallbackQueryHandler(botones_recurrentes, pattern=r"^rec:"))
 
     app.add_handler(
         CommandHandler(

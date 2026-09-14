@@ -1,3 +1,4 @@
+from finanzas import formatear_fecha
 import re
 import sys
 from datetime import datetime
@@ -1171,14 +1172,10 @@ def preparar_filas_msi_faltantes_bbva(
 
             fila = [
                 "Gasto",
-                cuota[
+                formatear_fecha(cuota[
                     "fecha"
-                ].strftime(
-                    "%d/%m/%Y"
-                ),
-                fecha_compra.strftime(
-                    "%d/%m/%Y"
-                ),
+                ]),
+                formatear_fecha(fecha_compra),
                 cuota[
                     "monto"
                 ],
@@ -1785,7 +1782,7 @@ def mostrar_analisis_msi_bbva(
                     f"{cuota['numero']:02d}/"
                     f"{plan['plazos']:02d}"
                     f" | "
-                    f"{cuota['fecha'].strftime('%d/%m/%Y')}"
+                    f"{formatear_fecha(cuota['fecha'])}"
                     f" | "
                     f"${cuota['monto']:,.2f}"
                 )
@@ -1995,12 +1992,8 @@ def preparar_cargos_regulares_faltantes(
 
         fila = [
             "Gasto",
-            fecha_limite.strftime(
-                "%d/%m/%Y"
-            ),
-            fecha_operacion.strftime(
-                "%d/%m/%Y"
-            ),
+            formatear_fecha(fecha_limite),
+            formatear_fecha(fecha_operacion),
             monto,
             cuenta,
             "",
@@ -3039,9 +3032,7 @@ def preparar_filas_cuotas_genericas(
 
         fila = [
             "Gasto",
-            fecha_limite.strftime(
-                "%d/%m/%Y"
-            ),
+            formatear_fecha(fecha_limite),
             "",
             monto,
             cuenta,

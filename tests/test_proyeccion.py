@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 from datetime import datetime
 from test_regresion import movimiento
 from finanzas import calcular_promedio_ingresos_recientes as promedio
@@ -8,6 +9,9 @@ HOY = datetime(2026, 9, 13)
 
 class Proyeccion(unittest.TestCase):
     def setUp(self):
+        reglas = patch("bot.leer_reglas", return_value=[])
+        reglas.start()
+        self.addCleanup(reglas.stop)
         self.ingresos = [movimiento(monto=24000), movimiento(fecha='01/07/2026', monto=28000),
                          movimiento(fecha='31/08/2026', monto=23000)]
 
