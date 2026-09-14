@@ -3,8 +3,15 @@ import os
 
 from recurrentes import leer_reglas, generar_vencimientos, procesar_comando
 from recurrentes_guiado import manejar_texto_recurrente, manejar_boton_recurrente
+from recordatorios import (
+    activar as activar_recordatorios,
+    configurar_recordatorios,
+    crear_mensaje as crear_mensaje_recordatorio,
+    desactivar as desactivar_recordatorios,
+    vencimientos_pendientes,
+)
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from dotenv import load_dotenv
 
@@ -3390,6 +3397,43 @@ async def botones_recurrentes(update, context):
     await manejar_boton_recurrente(update, context, CUENTAS_GASTO, CATEGORIAS_GASTO)
 
 
+async def manejar_recordatorios(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message is None or update.effective_chat is None:
+        return
+
+    partes = update.message.text.split(maxsplit=1)
+    accion = partes[1].strip().lower() if len(partes) > 1 else ""
+    chat_id = update.effective_chat.id
+
+    if accion == "activar":
+        activar_recordatorios(chat_id)
+        await update.message.reply_text(
+            "Recordatorios activados. Todos los días a las 9:00 a.m. te avisaré "
+            "los gastos pendientes que vencen al día siguiente."
+        )
+        return
+
+    if accion == "desactivar":
+        desactivar_recordatorios(chat_id)
+        await update.message.reply_text("Recordatorios desactivados para este chat.")
+        return
+
+    if accion == "probar":
+        fecha = datetime.now().date() + timedelta(days=1)
+        mensaje = crear_mensaje_recordatorio(
+            fecha,
+            vencimientos_pendientes(obtener_movimientos(), fecha),
+        )
+        await update.message.reply_text(mensaje or "No hay pagos pendientes para mañana.")
+        return
+
+    await update.message.reply_text(
+        "Usa /recordatorios activar para recibir avisos diarios a las 9:00 a.m.\n"
+        "/recordatorios probar para ver el aviso de mañana.\n"
+        "/recordatorios desactivar para detenerlos."
+    )
+
+
 def main():
 
     if not TOKEN:
@@ -3407,11 +3451,13 @@ def main():
         .token(
             TOKEN
         )
+        .post_init(configurar_recordatorios)
         .build()
     )
 
 
     app.add_handler(CommandHandler("recurrentes", manejar_recurrentes))
+    app.add_handler(CommandHandler("recordatorios", manejar_recordatorios))
     app.add_handler(CallbackQueryHandler(botones_recurrentes, pattern=r"^rec:"))
 
     app.add_handler(
