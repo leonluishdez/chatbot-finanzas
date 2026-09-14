@@ -31,6 +31,7 @@ from sheets import (
 
 from finanzas import (
     NOMBRES_MESES,
+    calcular_promedio_ingresos_recientes,
     calcular_fecha_corte,
     calcular_fechas_estado_cuenta,
     calcular_primera_fecha_pago,
@@ -595,8 +596,25 @@ def crear_resumen_proyeccion(
     cuenta=None,
     status=None,
     tipo_pago=None,
-    tipo_movimiento="Gasto"
+    tipo_movimiento="Gasto",
+    hoy=None
 ):
+
+    hoy = hoy or datetime.now()
+    periodos = list(periodos)
+    es_proyeccion = (
+        bool(periodos)
+        and normalizar_texto(tipo_movimiento) == "gasto"
+        and normalizar_texto(status or "") == "pendiente"
+        and all(
+            (p["anio"] or hoy.year, p["mes"]) > (hoy.year, hoy.month)
+            for p in periodos
+        )
+    )
+    ingreso_estimado = (
+        calcular_promedio_ingresos_recientes(movimientos, hoy=hoy)
+        if es_proyeccion else 0.0
+    )
 
     resultados = []
 
@@ -672,6 +690,20 @@ def crear_resumen_proyeccion(
     ]
 
 
+    if es_proyeccion:
+        lineas = [
+            "📊 Proyección financiera",
+            f"Ingreso mensual estimado: ${ingreso_estimado:,.2f}",
+            "Promedio de los últimos 3 meses completos (meses sin ingresos = $0).",
+            "",
+        ]
+        if any(filtro is not None for filtro in (subcategoria, cuenta, tipo_pago)):
+            lineas.extend([
+                "Compromisos filtrados; ingreso estimado de todas las cuentas.",
+                "El disponible solo descuenta los gastos seleccionados.",
+                "",
+            ])
+
     for resultado in resultados:
 
         nombre_mes = NOMBRES_MESES.get(
@@ -700,6 +732,15 @@ def crear_resumen_proyeccion(
             )
 
 
+        if es_proyeccion:
+            lineas.extend([
+                etiqueta,
+                f"Comprometido: ${resultado['total']:,.2f}",
+                f"Disponible estimado: ${ingreso_estimado - resultado['total']:,.2f}",
+                "",
+            ])
+            continue
+
         lineas.append(
             (
                 f"{etiqueta}: "
@@ -720,6 +761,13 @@ def crear_resumen_proyeccion(
         )
     )
 
+
+    if es_proyeccion:
+        ingreso_periodo = round(ingreso_estimado * len(resultados), 2)
+        lineas.extend([
+            f"Ingreso estimado del periodo: ${ingreso_periodo:,.2f}",
+            f"Disponible estimado del periodo: ${ingreso_periodo - total_general:,.2f}",
+        ])
 
     return "\n".join(
         lineas

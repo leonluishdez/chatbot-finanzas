@@ -2369,3 +2369,35 @@ def calcular_total_subcategoria(
         movimientos,
         subcategoria=subcategoria
     )
+
+# ============================================================
+# PROYECCIÓN FINANCIERA v1.6.1
+# ============================================================
+
+def calcular_promedio_ingresos_recientes(movimientos, meses=3, hoy=None):
+    """Promedio por Fecha de Pago de ingresos Pagado de meses completos.
+
+    Los meses sin ingresos cuentan como cero. No aplica filtros de gastos.
+    Pagado es el estado que asigna el bot al registrar un ingreso real.
+    """
+    if isinstance(meses, bool) or not isinstance(meses, int) or meses <= 0:
+        raise ValueError("meses debe ser un entero positivo")
+    hoy = hoy or datetime.now()
+    fin = datetime(hoy.year, hoy.month, 1)
+    inicio = sumar_meses(fin, -meses)
+    total = Decimal("0")
+    for movimiento in movimientos:
+        if normalizar_texto(movimiento.get("Tipo de Movimiento", "")) != "ingreso":
+            continue
+        if normalizar_texto(movimiento.get("Status", "")) != "pagado":
+            continue
+        try:
+            fecha = convertir_fecha(movimiento.get("Fecha de Pago", ""))
+            if not inicio <= fecha < fin:
+                continue
+            monto = Decimal(str(convertir_monto(movimiento.get("Monto de Compra", 0))))
+            if monto.is_finite():
+                total += monto
+        except (ValueError, TypeError):
+            continue
+    return float((total / meses).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
