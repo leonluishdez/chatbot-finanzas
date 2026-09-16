@@ -1152,6 +1152,12 @@ def detectar_analisis_mensual(mensaje):
         "analiza mis gastos",
         "en que he gastado",
         "en que gasto",
+        "que rubros he gastado mas",
+        "rubros he gastado mas",
+        "rubros gasto mas",
+        "media de gasto",
+        "que rubros deberia bajar",
+        "que gastos deberia bajar",
     )
 
     return any(frase in mensaje_normalizado for frase in frases)

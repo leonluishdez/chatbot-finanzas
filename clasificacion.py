@@ -92,7 +92,15 @@ def sugerir_subcategoria(movimiento):
     if actual in ALIAS_CATEGORIAS:
         return ALIAS_CATEGORIAS[actual], "alta", "Categoría existente normalizada"
 
-    descripcion = normalizar_texto(movimiento.get("Descripcion", ""))
+    # Las importaciones nuevas guardan el comercio en Concepto y usan
+    # Descripcion sólo cuando hace falta contexto adicional. Para registros
+    # anteriores alguno de los dos campos puede estar vacío.
+    descripcion = normalizar_texto(
+        " ".join(
+            str(movimiento.get(campo, "") or "")
+            for campo in ("Concepto", "Descripcion")
+        )
+    )
     for patrones, categoria in REGLAS_DESCRIPCION:
         if any(patron in descripcion for patron in patrones):
             return categoria, "media", "Patrón de descripción"

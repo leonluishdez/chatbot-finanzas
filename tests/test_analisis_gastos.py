@@ -2,7 +2,12 @@ import unittest
 from datetime import datetime
 
 from bot import crear_resumen_analisis_mensual
-from finanzas import analizar_gasto_por_subcategoria, detectar_cuenta, interpretar_mensaje
+from finanzas import (
+    analizar_gasto_por_subcategoria,
+    detectar_analisis_mensual,
+    detectar_cuenta,
+    interpretar_mensaje,
+)
 
 
 HOY = datetime(2026, 9, 15)
@@ -20,6 +25,15 @@ def gasto(fecha, monto, subcategoria, cuenta="Caja Popular Mexicana", **extra):
 
 
 class AnalisisGastos(unittest.TestCase):
+
+    def test_detecta_preguntas_sobre_rubros_media_y_ajustes(self):
+        for mensaje in (
+            "¿Qué rubros he gastado más este mes?",
+            "¿Cuál es la media de gasto de este mes?",
+            "¿Qué rubros debería bajar?",
+        ):
+            self.assertTrue(detectar_analisis_mensual(mensaje))
+
     def setUp(self):
         self.movimientos = [
             gasto("10/09/2026", 1500, "Comida"),
