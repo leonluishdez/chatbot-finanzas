@@ -2498,6 +2498,13 @@ def clasificar_flexibilidad_subcategoria(subcategoria):
     if any(palabra in texto for palabra in compromisos):
         return "compromiso/fijo"
 
+    extraordinarios = (
+        "viaje", "salud", "tercero", "reembolso", "regalo",
+    )
+
+    if any(palabra in texto for palabra in extraordinarios):
+        return "extraordinario"
+
     return "ajustable"
 
 
