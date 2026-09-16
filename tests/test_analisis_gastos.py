@@ -84,6 +84,19 @@ class AnalisisGastos(unittest.TestCase):
         self.assertIn("Compromisos que subieron:", texto)
         self.assertIn("Servicios: +$300.00", texto)
 
+    def test_viajes_y_salud_son_extraordinarios(self):
+        movimientos = [
+            gasto("10/09/2026", 1000, "Viajes"),
+            gasto("10/08/2026", 100, "Viajes"),
+            gasto("10/09/2026", 500, "Salud"),
+            gasto("10/08/2026", 100, "Salud"),
+        ]
+        texto = crear_resumen_analisis_mensual(movimientos, hoy=HOY)
+
+        self.assertIn("Gastos extraordinarios:", texto)
+        self.assertIn("Viajes", texto)
+        self.assertIn("Salud", texto)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -658,13 +658,25 @@ def crear_resumen_analisis_mensual(
         categoria for categoria in oportunidades
         if categoria["flexibilidad"] == "compromiso/fijo"
     ]
+    extraordinarios = [
+        categoria for categoria in oportunidades
+        if categoria["flexibilidad"] == "extraordinario"
+    ]
 
     if ajustables:
         lineas.extend(["", "💡 Ajustes concretos:"])
         for categoria in sorted(ajustables, key=lambda item: item["diferencia"], reverse=True)[:3]:
             lineas.append(
                 f"• {categoria['subcategoria']}: llevas ${categoria['diferencia']:,.2f} por encima de tu media comparable. "
-                f"Si quieres acercarte a tu ritmo habitual al cierre, limita compras adicionales de este rubro por ${categoria['diferencia']:,.2f}."
+                f"Para volver a tu media el próximo mes, reduce el presupuesto de este rubro en aproximadamente ${categoria['diferencia']:,.2f}."
+            )
+
+    if extraordinarios:
+        lineas.extend(["", "Gastos extraordinarios:"])
+        for categoria in sorted(extraordinarios, key=lambda item: item["diferencia"], reverse=True)[:3]:
+            lineas.append(
+                f"• {categoria['subcategoria']}: +${categoria['diferencia']:,.2f}. "
+                "Lo considero excepcional; confirma si fue temporal o reembolsable antes de usarlo para decidir recortes."
             )
 
     if fijos:
