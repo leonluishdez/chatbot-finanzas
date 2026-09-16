@@ -28,6 +28,10 @@ NOMBRE_HOJA_ESTADOS = os.getenv(
 
 ARCHIVO_CREDENCIALES = "service_account.json"
 
+# "Rubro" es el nombre visible actual de la columna H. Conservamos la
+# compatibilidad con "Subcategoria" para hojas y pruebas anteriores.
+COLUMNAS_RUBRO = ("Rubro", "Subcategoria")
+
 
 # ============================================================
 # CLIENTE DE GOOGLE SHEETS
@@ -92,8 +96,28 @@ def obtener_hoja():
 
 
 def obtener_movimientos():
+    movimientos = obtener_hoja().get_all_records()
 
-    return obtener_hoja().get_all_records()
+    # El resto de la aplicación todavía usa la llave interna Subcategoria.
+    # Al exponer este alias no se pierde compatibilidad si la hoja ya se
+    # renombró a Rubro.
+    for movimiento in movimientos:
+        if "Rubro" in movimiento and "Subcategoria" not in movimiento:
+            movimiento["Subcategoria"] = movimiento["Rubro"]
+
+    return movimientos
+
+
+def obtener_columna_rubro(encabezados):
+
+    for columna in COLUMNAS_RUBRO:
+        if columna in encabezados:
+            return columna
+
+    raise RuntimeError(
+        "No existe la columna Rubro (antes Subcategoria) "
+        "en la hoja Movimientos."
+    )
 
 
 def registrar_movimiento(
@@ -142,11 +166,7 @@ def obtener_movimientos_sin_clasificar():
         for valor in valores[0]
     ]
 
-    if "Subcategoria" not in encabezados:
-        raise RuntimeError(
-            "No existe la columna Subcategoria "
-            "en la hoja Movimientos."
-        )
+    columna_rubro = obtener_columna_rubro(encabezados)
 
     pendientes = []
 
@@ -170,9 +190,12 @@ def obtener_movimientos_sin_clasificar():
                 encabezado
             ] = valor
 
+        if columna_rubro == "Rubro":
+            movimiento["Subcategoria"] = movimiento.get("Rubro", "")
+
         subcategoria = str(
             movimiento.get(
-                "Subcategoria",
+                columna_rubro,
                 ""
             )
         ).strip().lower()
@@ -232,15 +255,11 @@ def actualizar_subcategoria_movimiento(
         1
     )
 
-    if "Subcategoria" not in encabezados:
-        raise RuntimeError(
-            "No existe la columna Subcategoria "
-            "en la hoja Movimientos."
-        )
+    columna_rubro = obtener_columna_rubro(encabezados)
 
     columna_subcategoria = (
         encabezados.index(
-            "Subcategoria"
+            columna_rubro
         )
         + 1
     )

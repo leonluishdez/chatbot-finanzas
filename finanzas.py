@@ -1041,23 +1041,11 @@ def detectar_cuenta(
         mensaje
     )
 
-    # Alias largos primero
-
-    for alias in sorted(
-        ALIAS_CUENTAS,
-        key=len,
-        reverse=True
-    ):
-
-        if normalizar_texto(
-            alias
-        ) in mensaje_normalizado:
-
-            return ALIAS_CUENTAS[
-                alias
-            ]
-
-    # Cuentas existentes en Sheets
+    # Las cuentas de Sheets son la fuente de verdad para consultas.
+    # Primero buscamos el nombre completo y después una coincidencia
+    # significativa (por ejemplo, "Caja Popular" para
+    # "Caja Popular Mexicana"). Los alias sólo conservan comodidad para
+    # nombres cortos de las tarjetas configuradas.
 
     cuentas_existentes = []
 
@@ -1098,7 +1086,75 @@ def detectar_cuenta(
 
             return cuenta
 
+    coincidencias_parciales = []
+
+    for cuenta in cuentas_existentes:
+
+        palabras = [
+            palabra
+            for palabra in normalizar_texto(cuenta).split()
+            if len(palabra) > 2
+        ]
+
+        for inicio in range(len(palabras)):
+
+            for fin in range(len(palabras), inicio + 1, -1):
+
+                fragmento = " ".join(palabras[inicio:fin])
+
+                if len(fragmento.split()) < 2:
+                    continue
+
+                if fragmento in mensaje_normalizado:
+
+                    coincidencias_parciales.append(
+                        (len(fragmento), cuenta)
+                    )
+                    break
+
+    if coincidencias_parciales:
+
+        return max(coincidencias_parciales)[1]
+
+    for alias in sorted(
+        ALIAS_CUENTAS,
+        key=len,
+        reverse=True
+    ):
+
+        if normalizar_texto(alias) in mensaje_normalizado:
+
+            cuenta_alias = ALIAS_CUENTAS[alias]
+
+            for cuenta in cuentas_existentes:
+
+                if normalizar_texto(cuenta) == normalizar_texto(cuenta_alias):
+
+                    return cuenta
+
+            return cuenta_alias
+
     return None
+
+
+# ============================================================
+# DETECTAR ANÁLISIS MENSUAL
+# ============================================================
+
+def detectar_analisis_mensual(mensaje):
+
+    mensaje_normalizado = normalizar_texto(mensaje)
+
+    frases = (
+        "como voy",
+        "como me fue",
+        "analisis de gasto",
+        "analiza mis gastos",
+        "en que he gastado",
+        "en que gasto",
+    )
+
+    return any(frase in mensaje_normalizado for frase in frases)
 
 
 # ============================================================
@@ -1631,6 +1687,7 @@ def interpretar_mensaje(
         "plazos": plazos,
         "status": status,
         "tipo_pago": tipo_pago,
+        "analisis_mensual": detectar_analisis_mensual(mensaje),
     }
 
 
@@ -2401,6 +2458,140 @@ def calcular_promedio_ingresos_recientes(movimientos, meses=3, hoy=None):
         except (ValueError, TypeError):
             continue
     return float((total / meses).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+
+
+# ============================================================
+# ANÁLISIS DE GASTO POR SUBCATEGORÍA
+# ============================================================
+
+def obtener_fecha_gasto(movimiento):
+    """Fecha de compra; conserva compatibilidad con registros antiguos."""
+    for campo in ("Fecha de Compra", "Fecha de Pago"):
+        valor = movimiento.get(campo, "")
+        if not valor:
+            continue
+        try:
+            return convertir_fecha(valor)
+        except (ValueError, TypeError):
+            continue
+    return None
+
+
+def clasificar_flexibilidad_subcategoria(subcategoria):
+    """Clasifica sólo cuando el nombre aporta evidencia suficiente."""
+    texto = normalizar_texto(subcategoria)
+
+    if not texto or texto == "sin clasificar":
+        return "sin clasificar"
+
+    compromisos = (
+        "servicio", "seguro", "ppr", "retiro", "renta", "hipoteca",
+        "prestamo", "colegiatura", "impuesto",
+    )
+
+    if any(palabra in texto for palabra in compromisos):
+        return "compromiso/fijo"
+
+    return "ajustable"
+
+
+def analizar_gasto_por_subcategoria(
+    movimientos,
+    mes=None,
+    anio=None,
+    meses_historial=3,
+    cuenta=None,
+    hoy=None,
+):
+    """Compara un mes de gasto con sus tres meses anteriores.
+
+    Para el mes en curso compara el mismo número de días de cada mes
+    anterior. Para un mes ya cerrado, compara meses completos.
+    """
+    if isinstance(meses_historial, bool) or not isinstance(meses_historial, int) or meses_historial <= 0:
+        raise ValueError("meses_historial debe ser un entero positivo")
+
+    hoy = hoy or datetime.now()
+    mes = mes or hoy.month
+    anio = anio or hoy.year
+    inicio_objetivo = datetime(anio, mes, 1)
+    es_mes_en_curso = (anio, mes) == (hoy.year, hoy.month)
+    dia_comparable = hoy.day if es_mes_en_curso else calendar.monthrange(anio, mes)[1]
+
+    periodos_referencia = [
+        sumar_meses(inicio_objetivo, -desplazamiento)
+        for desplazamiento in range(1, meses_historial + 1)
+    ]
+
+    totales = {}
+    for fecha_periodo in [inicio_objetivo] + periodos_referencia:
+        totales[(fecha_periodo.year, fecha_periodo.month)] = {}
+
+    for movimiento in movimientos:
+        if normalizar_texto(movimiento.get("Tipo de Movimiento", "")) != "gasto":
+            continue
+        if cuenta is not None and normalizar_texto(movimiento.get("Cuenta", "")) != normalizar_texto(cuenta):
+            continue
+
+        fecha = obtener_fecha_gasto(movimiento)
+        if fecha is None or fecha.day > dia_comparable:
+            continue
+
+        periodo = (fecha.year, fecha.month)
+        if periodo not in totales:
+            continue
+
+        try:
+            monto = convertir_monto(movimiento.get("Monto de Compra", 0))
+        except (ValueError, TypeError):
+            continue
+
+        subcategoria = str(movimiento.get("Subcategoria", "") or "Sin clasificar").strip()
+        if not subcategoria:
+            subcategoria = "Sin clasificar"
+        acumulados = totales[periodo]
+        acumulados[subcategoria] = acumulados.get(subcategoria, 0.0) + monto
+
+    categorias = set()
+    for acumulados in totales.values():
+        categorias.update(acumulados)
+
+    actual = totales[(anio, mes)]
+    resultado_categorias = []
+    for subcategoria in categorias:
+        gasto_actual = round(actual.get(subcategoria, 0.0), 2)
+        promedio = round(
+            sum(totales[(fecha.year, fecha.month)].get(subcategoria, 0.0) for fecha in periodos_referencia)
+            / meses_historial,
+            2,
+        )
+        diferencia = round(gasto_actual - promedio, 2)
+        porcentaje = round((diferencia / promedio) * 100, 1) if promedio else None
+        resultado_categorias.append({
+            "subcategoria": subcategoria,
+            "actual": gasto_actual,
+            "promedio": promedio,
+            "diferencia": diferencia,
+            "porcentaje": porcentaje,
+            "flexibilidad": clasificar_flexibilidad_subcategoria(subcategoria),
+        })
+
+    resultado_categorias.sort(key=lambda categoria: (-categoria["actual"], categoria["subcategoria"]))
+    total_actual = round(sum(actual.values()), 2)
+    total_promedio = round(
+        sum(sum(totales[(fecha.year, fecha.month)].values()) for fecha in periodos_referencia) / meses_historial,
+        2,
+    )
+
+    return {
+        "mes": mes,
+        "anio": anio,
+        "es_mes_en_curso": es_mes_en_curso,
+        "dia_comparable": dia_comparable,
+        "total_actual": total_actual,
+        "total_promedio": total_promedio,
+        "categorias": resultado_categorias,
+    }
 
 
 def formatear_fecha(fecha):
