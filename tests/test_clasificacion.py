@@ -36,6 +36,15 @@ class Clasificacion(unittest.TestCase):
             "Reembolsos recibidos",
         )
 
+    def test_tambien_usa_concepto_cuando_descripcion_esta_vacia(self):
+        movimiento = gasto("")
+        movimiento["Concepto"] = "Uber Eats"
+
+        self.assertEqual(
+            sugerir_subcategoria(movimiento),
+            ("Comida a domicilio", "media", "Patrón de descripción"),
+        )
+
     def test_ignora_ingresos_y_resumen_no_expone_filas(self):
         ingreso = {"Tipo de Movimiento": "Ingreso", "Descripcion": "Nómina", "Subcategoria": "Nomina"}
         self.assertEqual(sugerir_subcategoria(ingreso), (None, "fuera_de_alcance", "No es un gasto"))

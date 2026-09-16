@@ -31,6 +31,7 @@ ARCHIVO_CREDENCIALES = "service_account.json"
 # "Rubro" es el nombre visible actual de la columna H. Conservamos la
 # compatibilidad con "Subcategoria" para hojas y pruebas anteriores.
 COLUMNAS_RUBRO = ("Rubro", "Subcategoria")
+RUBROS_PENDIENTES = ("sin clasificar", "sin identificar")
 
 
 # ============================================================
@@ -208,7 +209,7 @@ def obtener_movimientos_sin_clasificar():
         ).strip().lower()
 
         if (
-            subcategoria == "sin clasificar"
+            subcategoria in RUBROS_PENDIENTES
             and tipo_movimiento == "gasto"
         ):
 
@@ -274,7 +275,7 @@ def actualizar_subcategoria_movimiento(
 
     if (
         subcategoria_actual.lower()
-        != "sin clasificar"
+        not in RUBROS_PENDIENTES
     ):
 
         return False

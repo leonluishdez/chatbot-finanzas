@@ -33,6 +33,7 @@ class ConceptoImportacion(unittest.TestCase):
         hoja.get_all_values.return_value = [
             ["Tipo de Movimiento", "Rubro"],
             ["Gasto", "Sin clasificar"],
+            ["Gasto", "Sin identificar"],
         ]
 
         with patch("sheets.obtener_hoja", return_value=hoja):
@@ -41,3 +42,4 @@ class ConceptoImportacion(unittest.TestCase):
 
         self.assertEqual(movimientos[0]["Subcategoria"], "Transporte")
         self.assertEqual(pendientes[0]["Subcategoria"], "Sin clasificar")
+        self.assertEqual(pendientes[1]["Subcategoria"], "Sin identificar")
