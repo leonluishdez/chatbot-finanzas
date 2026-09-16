@@ -43,6 +43,7 @@ from sheets import (
 from finanzas import (
     NOMBRES_MESES,
     calcular_promedio_ingresos_recientes,
+    analizar_gasto_por_subcategoria,
     calcular_fecha_corte,
     calcular_fechas_estado_cuenta,
     calcular_primera_fecha_pago,
@@ -594,6 +595,86 @@ def crear_resumen_mensualidades(
     return "\n".join(
         lineas
     )
+
+
+# ============================================================
+# RESUMEN DE ANÁLISIS MENSUAL
+# ============================================================
+
+def crear_resumen_analisis_mensual(
+    movimientos,
+    mes=None,
+    anio=None,
+    cuenta=None,
+    hoy=None,
+):
+    analisis = analizar_gasto_por_subcategoria(
+        movimientos,
+        mes=mes,
+        anio=anio,
+        cuenta=cuenta,
+        hoy=hoy,
+    )
+    nombre_mes = NOMBRES_MESES[analisis["mes"]]
+    periodo = f"{nombre_mes} {analisis['anio']}"
+    comparacion = (
+        f"hasta el día {analisis['dia_comparable']}"
+        if analisis["es_mes_en_curso"]
+        else "mes completo"
+    )
+    lineas = [
+        f"📊 Cómo vas en {periodo}",
+        f"Gasto acumulado: ${analisis['total_actual']:,.2f}",
+        f"Media comparable de los 3 meses anteriores: ${analisis['total_promedio']:,.2f}",
+        f"Comparación: {comparacion}.",
+        "",
+        "Por rubro:",
+    ]
+
+    if not analisis["categorias"]:
+        return "\n".join(lineas + ["Aún no hay gastos con fechas válidas para analizar."])
+
+    for categoria in analisis["categorias"][:8]:
+        variacion = (
+            f"{categoria['porcentaje']:+.1f}%"
+            if categoria["porcentaje"] is not None
+            else "sin base comparable"
+        )
+        signo = "+" if categoria["diferencia"] >= 0 else "-"
+        lineas.extend([
+            f"• {categoria['subcategoria']}: ${categoria['actual']:,.2f}",
+            f"  Media: ${categoria['promedio']:,.2f} | Diferencia: {signo}${abs(categoria['diferencia']):,.2f} ({variacion})",
+        ])
+
+    oportunidades = [
+        categoria for categoria in analisis["categorias"]
+        if categoria["diferencia"] > 0 and categoria["promedio"] > 0
+    ]
+    ajustables = [
+        categoria for categoria in oportunidades
+        if categoria["flexibilidad"] == "ajustable"
+    ]
+    fijos = [
+        categoria for categoria in oportunidades
+        if categoria["flexibilidad"] == "compromiso/fijo"
+    ]
+
+    if ajustables:
+        lineas.extend(["", "💡 Ajustes concretos:"])
+        for categoria in sorted(ajustables, key=lambda item: item["diferencia"], reverse=True)[:3]:
+            lineas.append(
+                f"• {categoria['subcategoria']}: llevas ${categoria['diferencia']:,.2f} por encima de tu media comparable. "
+                f"Si quieres acercarte a tu ritmo habitual al cierre, limita compras adicionales de este rubro por ${categoria['diferencia']:,.2f}."
+            )
+
+    if fijos:
+        lineas.extend(["", "Compromisos que subieron:"])
+        for categoria in sorted(fijos, key=lambda item: item["diferencia"], reverse=True)[:3]:
+            lineas.append(
+                f"• {categoria['subcategoria']}: +${categoria['diferencia']:,.2f}. Lo marco como compromiso/fijo; conviene revisarlo, no recortarlo automáticamente."
+            )
+
+    return "\n".join(lineas)
 
 
 # ============================================================
@@ -2238,6 +2319,17 @@ async def responder_mensaje(
             "tipo_movimiento",
             "Gasto"
         )
+
+        if datos.get("analisis_mensual"):
+            await update.message.reply_text(
+                crear_resumen_analisis_mensual(
+                    movimientos,
+                    mes=mes,
+                    anio=anio,
+                    cuenta=cuenta,
+                )
+            )
+            return
 
 
         # ====================================================

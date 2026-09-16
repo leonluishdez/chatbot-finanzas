@@ -61,6 +61,50 @@ MESES_BANCO = {
 SUBCATEGORIA_PENDIENTE = "Sin clasificar"
 
 
+# Plataformas que por sí solas no identifican el gasto. Cuando el estado de
+# cuenta incluye un comercio después del prefijo, ese comercio se usa como
+# concepto y se conserva el texto completo como contexto.
+PLATAFORMAS_CONCEPTO_GENERICO = (
+    "MERCADO PAGO",
+    "MERCADOPAGO",
+    "PAYPAL",
+    "STRIPE",
+    "OPENPAY",
+    "CLIP",
+)
+
+
+def separar_concepto_y_descripcion(descripcion_banco):
+    """Devuelve un nombre breve para F y contexto adicional para G."""
+
+    descripcion = " ".join(str(descripcion_banco or "").split())
+
+    if not descripcion:
+        return "", ""
+
+    texto_normalizado = normalizar_texto(descripcion).upper()
+
+    for plataforma in PLATAFORMAS_CONCEPTO_GENERICO:
+        plataforma_normalizada = normalizar_texto(plataforma).upper()
+
+        if not texto_normalizado.startswith(plataforma_normalizada):
+            continue
+
+        resto = re.sub(
+            r"^[*:/\s-]+",
+            "",
+            descripcion[len(plataforma):],
+        ).strip()
+
+        # Un sufijo corto suele ser una referencia, no el comercio.
+        if len(resto) >= 4:
+            return resto, descripcion
+
+        return plataforma.title(), descripcion
+
+    return descripcion, ""
+
+
 # ============================================================
 # ABONOS APLICABLES
 # ============================================================
@@ -1162,6 +1206,10 @@ def preparar_filas_msi_faltantes_bbva(
                 f"{numero} de {plazos}"
             )
 
+            concepto, descripcion_detalle = (
+                separar_concepto_y_descripcion(descripcion)
+            )
+
             if numero < plan[
                 "numero"
             ]:
@@ -1180,8 +1228,8 @@ def preparar_filas_msi_faltantes_bbva(
                     "monto"
                 ],
                 "BBVA Platinum",
-                "",
-                descripcion,
+                concepto,
+                descripcion_detalle,
                 SUBCATEGORIA_PENDIENTE,
                 "Meses",
                 plazos,
@@ -1990,14 +2038,18 @@ def preparar_cargos_regulares_faltantes(
             )
             continue
 
+        concepto, descripcion_detalle = separar_concepto_y_descripcion(
+            descripcion
+        )
+
         fila = [
             "Gasto",
             formatear_fecha(fecha_limite),
             formatear_fecha(fecha_operacion),
             monto,
             cuenta,
-            "",
-            descripcion,
+            concepto,
+            descripcion_detalle,
             SUBCATEGORIA_PENDIENTE,
             "Contado",
             1,
@@ -3030,14 +3082,18 @@ def preparar_filas_cuotas_genericas(
             )
         ).strip()
 
+        concepto, descripcion_detalle = separar_concepto_y_descripcion(
+            descripcion
+        )
+
         fila = [
             "Gasto",
             formatear_fecha(fecha_limite),
             "",
             monto,
             cuenta,
-            "",
-            descripcion,
+            concepto,
+            descripcion_detalle,
             SUBCATEGORIA_PENDIENTE,
             "Meses",
             cuota[

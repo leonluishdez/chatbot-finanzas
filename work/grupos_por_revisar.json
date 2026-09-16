@@ -1,0 +1,628 @@
+{
+  "filas": [
+    {
+      "descripcion": "Europa",
+      "movimientos": 107,
+      "cuentas": "BBVA Oro, Hey Banco, Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "Servicios",
+      "movimientos": 62,
+      "cuentas": "Citibanamex Oro, HSBC 2 Now, NuBank",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "Suscripción",
+      "movimientos": 19,
+      "cuentas": "BBVA Debito, BBVA Oro, BBVA Platinum, Citibanamex Costco, HSBC, Hey Banco",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "Ninja Doña Mary",
+      "movimientos": 12,
+      "cuentas": "BBVA Oro",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "AECKSJ TIJGDLTIJ 21NOV // Sahian Nathalie Espinoza",
+      "movimientos": 11,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "AYRM3P TRCGDL 06ABR // Paola",
+      "movimientos": 11,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "BKYZ6B GDLTIJ 05ENE // Paola",
+      "movimientos": 11,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "FGTR9N Elide Paloma Mercado Sanchez",
+      "movimientos": 11,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "FY8VHF ORDGDL 12MAY // Angie Mercado",
+      "movimientos": 11,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "HJ2QFK TIJGDLTIJ 21NOV // Sahian Nathalie Espinoza",
+      "movimientos": 11,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "I8LYML GDLONTGDL 22MAY // Paola",
+      "movimientos": 11,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "JY4VYI GDLLAX 25ABR // Paola",
+      "movimientos": 11,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "LIVBKK Diego Muñoz Garcia",
+      "movimientos": 11,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "NIVEFK Miguel Angel Hernandez",
+      "movimientos": 11,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "P7FYYR Erik Manuel Mercado",
+      "movimientos": 11,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "RB8K3C PDXGDLPDX 18AGO // Tere Leon",
+      "movimientos": 11,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "RFIJ2D PDXGDLPDX 20FEB // Tere Leon",
+      "movimientos": 11,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "SCSNMP GDLTIJ 29MAR // Paola",
+      "movimientos": 11,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "UDCW9M GDLTIJ 22MAR // Paola",
+      "movimientos": 11,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "Z837SR TIJGDL 29MAY // Angie Mercado",
+      "movimientos": 11,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "Z9GQ4L TIJGDLTIJ 09OCT // Amparo Mercado",
+      "movimientos": 11,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "IE63PJ TIJGDL 29OCT // Andrew",
+      "movimientos": 10,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "VYQW6F SJDGDL 28MAR // Tere Leon",
+      "movimientos": 10,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "E8P9YI TIJSJDTIJ 17AGO // Tia Prieta",
+      "movimientos": 9,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "NG1FFD PDXGDLPDX 18AGO // Tere Leon - cancelado",
+      "movimientos": 9,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "MY7N3C GDLORDGDL 15ABR // Paola",
+      "movimientos": 8,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "Retiro de Efectivo",
+      "movimientos": 8,
+      "cuentas": "BBVA Debito",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "Las Vegas",
+      "movimientos": 7,
+      "cuentas": "BBVA Oro",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "RFLR3Q GDLMEXGDL 14SEP // Marco y Fatima",
+      "movimientos": 7,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "A Meses",
+      "movimientos": 6,
+      "cuentas": "BBVA Oro",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "AILM3U GDLPVRGDL 20AGO // Tere Leon",
+      "movimientos": 6,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "Cuidado Personal",
+      "movimientos": 6,
+      "cuentas": "BBVA Debito, Hey Banco, Rappicard, Vexi",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "DDWERJ GDLONT 08FEB // Tia Prieta (cancelado)",
+      "movimientos": 6,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "Diferido a MSI",
+      "movimientos": 6,
+      "cuentas": "BBVA Oro",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "IGMBRQ GDLONTGDL 21ABR // Luz Leon",
+      "movimientos": 6,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "NBFC7P MEXLASMEX 21FEB // GDV",
+      "movimientos": 6,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "NLGHSR GDLONT 08FEB // Tia Prieta (cancelado)",
+      "movimientos": 6,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "Salud y Cuidado Personal",
+      "movimientos": 6,
+      "cuentas": "Hey Banco",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "SKB43E GDLONT 09FEB // Javier y Prieta",
+      "movimientos": 6,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "PG8Z4A TIJGDL 13JUL // Tía Prieta y Bella",
+      "movimientos": 5,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "EGH7FN GDLLAXGDL 25JUN // Paola",
+      "movimientos": 4,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "HEZJ3T GDLTIJ 01AGO // Paola",
+      "movimientos": 4,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "UJ5Y3H GDLTIJ 26JUL // Tía Prieta y Bella",
+      "movimientos": 4,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "OPENPAY*FS COMERCIALIZ OPE 130906HN4MX",
+      "movimientos": 3,
+      "cuentas": "Citibanamex Costco",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "RB8K3C Asientos PDXGDLPDX 18AGO // Tere Leon",
+      "movimientos": 3,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "RFIJ2D Asientos PDXGDLPDX 20FEB // Tere Leon",
+      "movimientos": 3,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "MERPAGO*MERCADOLIBRE 003 de 003",
+      "movimientos": 2,
+      "cuentas": "Citibanamex Costco, Citibanamex Oro",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "Personal",
+      "movimientos": 2,
+      "cuentas": "Hey Banco",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "AILM3U Asientos GDLPVRGDL 20AGO // Tere Leon",
+      "movimientos": 1,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "Amazon 6 MSI 1 de 6",
+      "movimientos": 1,
+      "cuentas": "BBVA Platinum",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "Amazon 6 MSI 2 de 6",
+      "movimientos": 1,
+      "cuentas": "BBVA Platinum",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "Amazon 6 MSI 3 de 6",
+      "movimientos": 1,
+      "cuentas": "BBVA Platinum",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "Amazon 6 MSI 5 de 6",
+      "movimientos": 1,
+      "cuentas": "BBVA Platinum",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "Amazon 6 MSI 6 de 6",
+      "movimientos": 1,
+      "cuentas": "BBVA Platinum",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "BBW PLAZA PATRIA",
+      "movimientos": 1,
+      "cuentas": "BBVA Platinum",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "Boleto Sebastian",
+      "movimientos": 1,
+      "cuentas": "Citibanamex Oro",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "BOUT SPF 2860 PATRIA G",
+      "movimientos": 1,
+      "cuentas": "BBVA Platinum",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "EG7HNQ TIJGDL 04DIC // Paola",
+      "movimientos": 1,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "FB142P ONTGDL 01FEB // Javier y Prieta",
+      "movimientos": 1,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "Fianza iPad",
+      "movimientos": 1,
+      "cuentas": "BBVA Platinum",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "Hogar",
+      "movimientos": 1,
+      "cuentas": "Rappicard",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "KBW6MS TIJGDL 07NOV // Maria Pulido",
+      "movimientos": 1,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "KEEPCASH FANFEST GDL KEE 210820JA1MX",
+      "movimientos": 1,
+      "cuentas": "Citibanamex Costco",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "Mercado Pago 3 MSI 1 de 3",
+      "movimientos": 1,
+      "cuentas": "BBVA Platinum",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "Mercado Pago 3 MSI 3 de 3",
+      "movimientos": 1,
+      "cuentas": "BBVA Platinum",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "MERPAGO*BENANDFRANK 003 de 003",
+      "movimientos": 1,
+      "cuentas": "Citibanamex Costco",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "MERPAGO*LEYENDASMUSIC MAG 2105031W3MX",
+      "movimientos": 1,
+      "cuentas": "Citibanamex Costco",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "PAY PAL*4029357733 OPM 150323DI1MX",
+      "movimientos": 1,
+      "cuentas": "Citibanamex Costco",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "Pedido Tia Mari",
+      "movimientos": 1,
+      "cuentas": "Citibanamex Oro",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "PROMO 11 MSI 01 de 11",
+      "movimientos": 1,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "PROMO 11 MSI 02 de 11",
+      "movimientos": 1,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "PROMO 11 MSI 03 de 11",
+      "movimientos": 1,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "PROMO 11 MSI 04 de 11",
+      "movimientos": 1,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "PROMO 11 MSI 05 de 11",
+      "movimientos": 1,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "PROMO 11 MSI 06 de 11",
+      "movimientos": 1,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "PROMO 11 MSI 07 de 11",
+      "movimientos": 1,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "PROMO 11 MSI 08 de 11",
+      "movimientos": 1,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "PROMO 11 MSI 09 de 11",
+      "movimientos": 1,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "PROMO 11 MSI 10 de 11",
+      "movimientos": 1,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "PROMO 11 MSI 11 de 11",
+      "movimientos": 1,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "Registro plan:escapate",
+      "movimientos": 1,
+      "cuentas": "AMEX Platinum",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "Ropa y Accesorios",
+      "movimientos": 1,
+      "cuentas": "BBVA Debito",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "S8HRUB GDLORD 01DIC // Erik Manuel Mercado",
+      "movimientos": 1,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "SL5PUH GDLTIJ 09NOV // María Pulido",
+      "movimientos": 1,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "SLQI8B Jose de Jesus Vega Iñiguez",
+      "movimientos": 1,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "VClub",
+      "movimientos": 1,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "VIP1YN GDLORD 31ENE // Paola",
+      "movimientos": 1,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "XB8T8S CUNGDLCUN 16NOV // Cucu y Felipe",
+      "movimientos": 1,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    },
+    {
+      "descripcion": "Z89LMB Amparo Sanchez",
+      "movimientos": 1,
+      "cuentas": "Invex",
+      "rubro_propuesto": "",
+      "nota": "Elige un rubro para todo el grupo."
+    }
+  ],
+  "sinDescripcion": 2145
+}
