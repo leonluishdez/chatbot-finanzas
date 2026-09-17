@@ -174,6 +174,17 @@ def comparar_movimientos(
             if indice in usados_internos:
                 continue
 
+            if movimiento_banco.get("cuota_msi_tabla"):
+                original = movimiento_interno.get("movimiento", {})
+                if normalizar_texto(original.get("Tipo de Pago", "")) != "meses":
+                    continue
+                try:
+                    plazos = int(float(original.get("Numero de Plazos", 0)))
+                except (TypeError, ValueError):
+                    continue
+                if plazos != movimiento_banco["plazos_msi"]:
+                    continue
+
             monto_interno = movimiento_interno[
                 "monto"
             ]
@@ -286,6 +297,9 @@ def comparar_movimientos(
 def clasificar_movimiento_banco(
     movimiento
 ):
+
+    if movimiento.get("origen_msi_confirmado"):
+        return "origen_msi"
 
     monto = movimiento.get(
         "monto",
