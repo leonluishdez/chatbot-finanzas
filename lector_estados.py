@@ -798,7 +798,42 @@ def extraer_resumen_cargos_abonos(
         "pago_no_intereses": (
             pago_no_intereses
         ),
+
+        "cuotas_msi_invex": extraer_cuotas_msi_invex(texto),
     }
+
+
+def extraer_cuotas_msi_invex(texto):
+    """Lee los pagos requeridos de la tabla MSI, sin sumarlos al resumen."""
+    inicio = texto.find("COMPRAS Y CARGOS DIFERIDOS A MESES SIN INTERESES")
+    if inicio < 0:
+        return []
+    fin = texto.find("CARGOS, ABONOS Y COMPRAS REGULARES", inicio)
+    if fin < 0:
+        return []
+
+    patron = re.compile(
+        r"^(?P<fecha>\d{2}-[A-Za-z]+-\d{4})\s+"
+        r"(?P<descripcion>.*?)\s+"
+        r"\$(?P<original>[\d,]+\.\d{2})\s+"
+        r"\$(?P<pendiente>[\d,]+\.\d{2})\s+"
+        r"\$(?P<cuota>[\d,]+\.\d{2})\s+"
+        r"(?P<numero>\d+) de (?P<plazos>\d+)\b"
+    )
+    cuotas = []
+    for linea in texto[inicio:fin].splitlines():
+        match = patron.search(linea.strip())
+        if match:
+            cuotas.append({
+                "fecha": match.group("fecha"),
+                "descripcion": " ".join(match.group("descripcion").split()),
+                "original": float(match.group("original").replace(",", "")),
+                "pendiente": float(match.group("pendiente").replace(",", "")),
+                "cuota": float(match.group("cuota").replace(",", "")),
+                "numero": int(match.group("numero")),
+                "plazos": int(match.group("plazos")),
+            })
+    return cuotas
 
 
 # ============================================================

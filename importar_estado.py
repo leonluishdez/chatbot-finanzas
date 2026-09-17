@@ -463,6 +463,39 @@ def validar_estado(
         2,
     )
 
+    # Invex registra las cuotas anteriores como movimientos del periodo.
+    # La primera cuota de una compra recién diferida puede ser exigible
+    # aunque todavía no aparezca entre esos movimientos.
+    cuotas_nuevas = 0.0
+    if cuenta == "Invex":
+        cargos_msi_asentados = round(sum(
+            movimiento.get("monto", 0)
+            for movimiento in movimientos_banco
+            if movimiento.get("monto", 0) > 0
+            and re.search(r"\b\d{2} OF \d{2}\b", movimiento.get("descripcion", ""), re.I)
+        ), 2)
+        if abs(cargos_msi_asentados - resumen["cargos_meses"]) <= 0.01:
+            for cuota in resumen.get("cuotas_msi_invex", []):
+                if cuota["numero"] != 1:
+                    continue
+                if abs(cuota["original"] - cuota["cuota"] - cuota["pendiente"]) > 0.01:
+                    continue
+                compra_asentada = any(
+                    movimiento.get("monto", 0) > 0
+                    and abs(movimiento["monto"] - cuota["original"]) <= 0.01
+                    and movimiento.get("fecha_operacion") == cuota["fecha"]
+                    for movimiento in movimientos_banco
+                )
+                cuota_asentada = any(
+                    movimiento.get("monto", 0) > 0
+                    and abs(movimiento["monto"] - cuota["cuota"]) <= 0.01
+                    and re.search(r"\b01 OF \d{2}\b", movimiento.get("descripcion", ""), re.I)
+                    for movimiento in movimientos_banco
+                )
+                if compra_asentada and not cuota_asentada:
+                    cuotas_nuevas += cuota["cuota"]
+            calculado = round(calculado + cuotas_nuevas, 2)
+
     pago_estado = resumen.get(
         "pago_no_intereses"
     )
@@ -503,12 +536,47 @@ def validar_estado(
         "abonos_aplicables": (
             abonos_aplicables
         ),
+        "cuotas_nuevas_invex": round(cuotas_nuevas, 2),
     }
 
 
 # ============================================================
 # CONCILIAR CONTRA SHEETS
 # ============================================================
+
+def preparar_movimientos_conciliacion_invex(resumen, movimientos):
+    """Representa la cuota inicial exigible sin contar dos veces la compra."""
+    preparados = [dict(movimiento) for movimiento in movimientos]
+    for cuota in resumen.get("cuotas_msi_invex", []):
+        if cuota["numero"] != 1:
+            continue
+        if abs(cuota["original"] - cuota["cuota"] - cuota["pendiente"]) > 0.01:
+            continue
+        compra = next((
+            movimiento for movimiento in preparados
+            if movimiento.get("monto", 0) > 0
+            and abs(movimiento["monto"] - cuota["original"]) <= 0.01
+            and movimiento.get("fecha_operacion") == cuota["fecha"]
+        ), None)
+        if compra is None:
+            continue
+        cuota_asentada = any(
+            movimiento.get("monto", 0) > 0
+            and abs(movimiento["monto"] - cuota["cuota"]) <= 0.01
+            and re.search(r"\b01 OF \d{2}\b", movimiento.get("descripcion", ""), re.I)
+            for movimiento in preparados
+        )
+        compra["origen_msi_confirmado"] = True
+        if not cuota_asentada:
+            preparados.append({
+                "fecha_operacion": cuota["fecha"],
+                "descripcion": f"{cuota['descripcion']} {cuota['numero']:02d} de {cuota['plazos']:02d}",
+                "monto": cuota["cuota"],
+                "cuota_msi_tabla": True,
+                "plazos_msi": cuota["plazos"],
+            })
+    return preparados
+
 
 def conciliar_con_sheets(
     datos,
@@ -4730,6 +4798,11 @@ def importar_estado(
             f"${validacion['pago_estado']:,.2f}"
         )
     )
+
+    if cuenta == "Invex":
+        movimientos_banco = preparar_movimientos_conciliacion_invex(
+            resumen, movimientos_banco
+        )
 
     # ========================================================
     # CONCILIACIÓN INICIAL
