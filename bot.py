@@ -1,7 +1,15 @@
 from finanzas import formatear_fecha
+from categorias import CATEGORIAS_GASTO, CATEGORIAS_INGRESO
 import asyncio
+import fcntl
 import os
-from ia import interpretar_mensaje as interpretar_con_gemini
+from pathlib import Path
+import traceback
+from ia import (
+    es_candidato_registro_gasto,
+    interpretar_mensaje as interpretar_con_gemini,
+    interpretar_registro_gasto as interpretar_registro_con_gemini,
+)
 
 from recurrentes import leer_reglas, generar_vencimientos, procesar_comando
 from recurrentes_guiado import manejar_texto_recurrente, manejar_boton_recurrente
@@ -74,6 +82,27 @@ TOKEN = os.getenv(
     "TELEGRAM_TOKEN"
 )
 
+_archivo_instancia = None
+
+
+def asegurar_instancia_unica(ruta=None):
+    """Impide que dos procesos de este proyecto consulten Telegram a la vez."""
+    global _archivo_instancia
+    if _archivo_instancia is not None:
+        return
+    ruta = Path(ruta) if ruta is not None else Path(__file__).parent / ".datos" / "bot.lock"
+    ruta.parent.mkdir(parents=True, exist_ok=True)
+    archivo = ruta.open("a+")
+    try:
+        fcntl.flock(archivo.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        archivo.close()
+        raise RuntimeError(
+            "Ya hay otra instancia de Chatbot Finanzas ejecutándose. "
+            "Cierra la anterior antes de iniciar otra."
+        ) from None
+    _archivo_instancia = archivo
+
 
 # ============================================================
 # CUENTAS
@@ -95,29 +124,6 @@ CUENTAS_GASTO = [
 # ============================================================
 # CATEGORÍAS
 # ============================================================
-
-CATEGORIAS_GASTO = [
-    "Comida",
-    "Transporte",
-    "Servicios",
-    "Entretenimiento",
-    "Viajes",
-    "Salud",
-    "Aprendizaje",
-    "PPR",
-    "Amazon",
-    "Varios",
-]
-
-
-CATEGORIAS_INGRESO = [
-    "Comisiones",
-    "Sueldo",
-    "Bonos",
-    "Freelance",
-    "Otros ingresos",
-]
-
 
 # ============================================================
 # FUNCIONES BÁSICAS
@@ -270,7 +276,13 @@ def crear_teclado_confirmacion():
                         "cancelar_gasto"
                     )
                 ),
-            ]
+            ],
+            [
+                InlineKeyboardButton(
+                    "Cambiar categoría",
+                    callback_data="cambiar_categoria"
+                )
+            ],
         ]
     )
 
@@ -282,6 +294,13 @@ def crear_teclado_confirmacion():
 def crear_resumen_confirmacion(
     datos
 ):
+
+    etiqueta_categoria = (
+        "Categoría sugerida"
+        if datos.get("categoria_sugerida_ia") == datos.get("categoria")
+        and datos.get("categoria_sugerida_ia") is not None
+        else "Categoría"
+    )
 
     tipo_movimiento = datos.get(
         "tipo_movimiento",
@@ -316,7 +335,7 @@ def crear_resumen_confirmacion(
         f"Cuenta: "
         f"{datos['cuenta']}\n"
 
-        f"Categoría: "
+        f"{etiqueta_categoria}: "
         f"{datos['categoria']}\n"
 
         f"Tipo de pago: "
@@ -1980,6 +1999,39 @@ async def responder_mensaje(
             movimientos
         )
 
+        # Gemini puede iniciar el flujo existente de un gasto ya realizado.
+        # No decide la cuenta ni guarda sin confirmación.
+        if (
+            datos["tipo_movimiento"] == "Gasto"
+            and not datos["analisis_mensual"]
+            and es_candidato_registro_gasto(mensaje_usuario)
+        ):
+            registro_ia = await asyncio.to_thread(
+                interpretar_registro_con_gemini,
+                mensaje_usuario,
+                CATEGORIAS_GASTO,
+            )
+            if registro_ia is not None:
+                intencion_local = datos["intencion"]
+                datos["intencion"] = "registrar"
+                datos["monto"] = registro_ia["monto"]
+                if not datos["concepto"]:
+                    datos["concepto"] = registro_ia["concepto"]
+                datos["categoria_sugerida_ia"] = registro_ia.get("categoria")
+                print(
+                    "Gemini: gasto interpretado; "
+                    f"intención añadida: {intencion_local != 'registrar'}; "
+                    "continúa la selección y confirmación",
+                    flush=True,
+                )
+            else:
+                print("Gemini: registro sin interpretación; se usa el parser local", flush=True)
+                if datos["intencion"] != "registrar":
+                    await update.message.reply_text(
+                        "No pude preparar ese gasto. Prueba: 'Gasté 250 en tacos'."
+                    )
+                    return
+
         # Gemini solo completa consultas simples de gastos. El parser local
         # conserva prioridad y sigue funcionando sin clave o sin conexión.
         if (
@@ -2003,12 +2055,23 @@ async def responder_mensaje(
                 categorias,
             )
             if interpretacion_ia is not None:
+                campos_aportados = []
                 if datos["subcategoria"] is None:
                     datos["subcategoria"] = interpretacion_ia["categoria"]
+                    if datos["subcategoria"] is not None:
+                        campos_aportados.append("categoria")
                 if datos["mes"] is None and interpretacion_ia["mes"] is not None:
                     datos["mes"] = interpretacion_ia["mes"]
                     datos["meses"] = [interpretacion_ia["mes"]]
                     datos["anio"] = interpretacion_ia["anio"]
+                    campos_aportados.append("periodo")
+                print(
+                    "Gemini: consulta interpretada; "
+                    f"filtros añadidos: {', '.join(campos_aportados) or 'ninguno'}",
+                    flush=True,
+                )
+            else:
+                print("Gemini: sin interpretación; se usa el parser local", flush=True)
 
 
         print(
@@ -2049,9 +2112,9 @@ async def responder_mensaje(
             )
 
 
-            # La categoría NO se asigna automáticamente.
-            # Siempre se selecciona con botones.
-            subcategoria = None
+            # La IA solo sugiere categorías válidas. El usuario puede
+            # cambiarla o cancelar en la pantalla de confirmación.
+            subcategoria = datos.get("categoria_sugerida_ia")
 
 
             plazos = datos.get(
@@ -2082,7 +2145,7 @@ async def responder_mensaje(
             # VALIDAR MONTO
             # =================================================
 
-            if monto is None:
+            if monto is None or monto <= 0:
 
                 if tipo_movimiento == "Ingreso":
 
@@ -2128,6 +2191,9 @@ async def responder_mensaje(
 
                 "subcategoria":
                 subcategoria,
+
+                "categoria_sugerida_ia":
+                datos.get("categoria_sugerida_ia"),
 
                 "plazos":
                 plazos,
@@ -2736,6 +2802,7 @@ async def responder_mensaje(
                 f"{error}"
             )
         )
+        traceback.print_exc()
 
 
         await update.message.reply_text(
@@ -2923,10 +2990,20 @@ async def manejar_categoria(
         1
     )
 
+    tipo_movimiento = datos.get("tipo_movimiento", "Gasto")
+    categorias_validas = (
+        CATEGORIAS_INGRESO if tipo_movimiento == "Ingreso" else CATEGORIAS_GASTO
+    )
+    if categoria not in categorias_validas:
+        await query.edit_message_text("La categoría seleccionada no es válida.")
+        return
+
 
     datos[
         "categoria"
     ] = categoria
+
+    datos["categoria_sugerida_ia"] = None
 
 
     context.user_data[
@@ -2941,6 +3018,23 @@ async def manejar_categoria(
         reply_markup=(
             crear_teclado_confirmacion()
         )
+    )
+
+
+async def cambiar_categoria(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    if query is None:
+        return
+    await query.answer()
+    datos = context.user_data.get("gasto_pendiente")
+    if datos is None:
+        await query.edit_message_text("No hay ningún movimiento pendiente.")
+        return
+    datos["categoria_sugerida_ia"] = None
+    datos["subcategoria"] = None
+    await query.edit_message_text(
+        "Selecciona la categoría correcta:",
+        reply_markup=crear_teclado_categorias(datos.get("tipo_movimiento", "Gasto")),
     )
 
 
@@ -3572,6 +3666,8 @@ async def manejar_recordatorios(update: Update, context: ContextTypes.DEFAULT_TY
 
 def main():
 
+    asegurar_instancia_unica()
+
     if not TOKEN:
 
         raise RuntimeError(
@@ -3633,6 +3729,13 @@ def main():
         CallbackQueryHandler(
             manejar_categoria,
             pattern=r"^categoria:"
+        )
+    )
+
+    app.add_handler(
+        CallbackQueryHandler(
+            cambiar_categoria,
+            pattern=r"^cambiar_categoria$"
         )
     )
 

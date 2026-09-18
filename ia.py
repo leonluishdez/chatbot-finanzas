@@ -1,17 +1,118 @@
-"""Interpretación opcional de consultas de gastos con Gemini.
+"""Interpretación opcional de consultas y registros de gastos con Gemini.
 
-La IA recibe nombres de categorías, nunca importes ni movimientos completos.
-Python valida su salida antes de que el bot consulte Sheets.
+La IA nunca recibe movimientos completos ni escribe en Sheets.
+Python valida su salida y ejecuta el flujo de confirmación del bot.
 """
 
 import json
+import math
 import os
+import re
 from datetime import datetime
 
-from finanzas import normalizar_texto
+from finanzas import detectar_monto, normalizar_texto
 
 
 MODELO_GEMINI = "gemini-3.5-flash-lite"
+
+
+def es_candidato_registro_gasto(mensaje):
+    """Limita Gemini a afirmaciones de gasto con un importe escrito."""
+    texto = normalizar_texto(mensaje)
+    return bool(
+        re.search(r"\b(gaste|pague|compre)\b", texto)
+        and not re.search(r"\b(cuanto|cuantos|total|consulta|consultar)\b", texto)
+        and not re.search(r"\b(no|nunca)\b", texto)
+        and "?" not in mensaje
+        and detectar_monto(mensaje) is not None
+    )
+
+
+def interpretar_registro_gasto(mensaje, categorias=()):
+    """Extrae monto, concepto y categoría sugerida; no autoriza el registro."""
+    clave = os.getenv("GEMINI_API_KEY", "").strip()
+    if not clave or not es_candidato_registro_gasto(mensaje):
+        return None
+
+    from google import genai
+    from google.genai import types
+
+    categorias_validas = {
+        normalizar_texto(categoria): categoria
+        for categoria in categorias
+        if isinstance(categoria, str) and categoria.strip()
+    }
+
+    try:
+        cliente = genai.Client(api_key=clave)
+        respuesta = cliente.models.generate_content(
+            model=MODELO_GEMINI,
+            contents=(
+                f"Categorías permitidas: "
+                f"{json.dumps(list(categorias_validas.values()), ensure_ascii=False)}\n"
+                f"Mensaje: {mensaje}"
+            ),
+            config=types.GenerateContentConfig(
+                system_instruction=(
+                    "Interpreta una afirmación de un gasto personal en español. "
+                    "Devuelve registrar_gasto solo si la persona dice que ya compró "
+                    "o pagó algo y da un importe explícito. Para preguntas, "
+                    "planes, ingresos o transferencias devuelve ninguna. "
+                    "Extrae el importe exacto. El concepto debe ser una frase "
+                    "breve que aparezca literalmente en el mensaje; no inventes "
+                    "productos ni cuentas. Sugiere una categoría solo si encaja "
+                    "claramente en la lista permitida; si hay duda usa null. "
+                    "No respondas al usuario."
+                ),
+                response_mime_type="application/json",
+                response_schema={
+                    "type": "OBJECT",
+                    "properties": {
+                        "intencion": {"type": "STRING", "enum": ["registrar_gasto", "ninguna"]},
+                        "monto": {"type": "NUMBER", "nullable": True},
+                        "concepto": {"type": "STRING", "nullable": True},
+                        "categoria": {"type": "STRING", "nullable": True},
+                    },
+                    "required": ["intencion", "monto", "concepto", "categoria"],
+                },
+            ),
+        )
+        datos = json.loads(respuesta.text)
+    except Exception as error:
+        print(f"Gemini: registro no disponible ({type(error).__name__})", flush=True)
+        return None
+
+    if not isinstance(datos, dict) or datos.get("intencion") != "registrar_gasto":
+        return None
+    monto = datos.get("monto")
+    monto_local = detectar_monto(mensaje)
+    if (
+        type(monto) not in (int, float)
+        or not math.isfinite(monto)
+        or monto <= 0
+        or monto_local is None
+        or abs(monto - monto_local) >= 0.005
+    ):
+        return None
+    concepto = datos.get("concepto")
+    if (
+        not isinstance(concepto, str)
+        or not concepto.strip()
+        or len(concepto.strip()) > 120
+        or normalizar_texto(concepto.strip()) not in normalizar_texto(mensaje)
+    ):
+        return None
+    categoria = datos.get("categoria")
+    if isinstance(categoria, str):
+        categoria = categorias_validas.get(normalizar_texto(categoria))
+    else:
+        categoria = None
+    return {
+        "intencion": "registrar_gasto",
+        "monto": float(monto),
+        "concepto": concepto.strip().capitalize(),
+        "categoria": categoria,
+    }
 
 
 def interpretar_mensaje(mensaje, categorias=(), hoy=None):
@@ -70,7 +171,8 @@ def interpretar_mensaje(mensaje, categorias=(), hoy=None):
             ),
         )
         datos = json.loads(respuesta.text)
-    except Exception:
+    except Exception as error:
+        print(f"Gemini: llamada no disponible ({type(error).__name__})", flush=True)
         return None
 
     if not isinstance(datos, dict) or datos.get("intencion") != "consultar_gastos":

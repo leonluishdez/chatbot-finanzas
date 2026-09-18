@@ -86,11 +86,19 @@ CONFIGURACION_TARJETAS = {
 # ============================================================
 
 ALIAS_SUBCATEGORIAS = {
-    "uber": "Uber/Didi",
-    "didi": "Uber/Didi",
-    "gmm": "Seguro de GMM",
-    "seguro medico": "Seguro de GMM",
-    "plan de retiro": "Plan de Retiro",
+    "uber eats": "Comida a domicilio",
+    "didi food": "Comida a domicilio",
+    "rappi": "Comida a domicilio",
+    "comida a domicilio": "Comida a domicilio",
+    "restaurantes": "Restaurantes y cafeterías",
+    "cafeterias": "Restaurantes y cafeterías",
+    "supermercado": "Supermercado y despensa",
+    "comida": "Alimentación",
+    "uber": "Transporte",
+    "didi": "Transporte",
+    "gmm": "Seguros",
+    "seguro medico": "Seguros",
+    "plan de retiro": "Ahorro y retiro",
 }
 
 
@@ -1785,12 +1793,16 @@ def obtener_movimientos_filtrados(
                 )
             )
 
-            if (
-                valor_subcategoria
-                != normalizar_texto(
-                    subcategoria
-                )
-            ):
+            if subcategoria == "Alimentación":
+                from categorias import CATEGORIAS_ALIMENTACION
+                coincide = valor_subcategoria in {
+                    normalizar_texto(nombre)
+                    for nombre in CATEGORIAS_ALIMENTACION
+                }
+            else:
+                coincide = valor_subcategoria == normalizar_texto(subcategoria)
+
+            if not coincide:
 
                 continue
 
