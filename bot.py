@@ -1,5 +1,7 @@
 from finanzas import formatear_fecha
+import asyncio
 import os
+from ia import interpretar_mensaje as interpretar_con_gemini
 
 from recurrentes import leer_reglas, generar_vencimientos, procesar_comando
 from recurrentes_guiado import manejar_texto_recurrente, manejar_boton_recurrente
@@ -1977,6 +1979,36 @@ async def responder_mensaje(
             mensaje_usuario,
             movimientos
         )
+
+        # Gemini solo completa consultas simples de gastos. El parser local
+        # conserva prioridad y sigue funcionando sin clave o sin conexión.
+        if (
+            datos["intencion"] == "consultar"
+            and datos["tipo_movimiento"] == "Gasto"
+            and "gast" in normalizar_texto(mensaje_usuario)
+            and not datos["periodos"]
+            and not datos["analisis_mensual"]
+            and datos["cuenta"] is None
+            and datos["status"] is None
+            and datos["tipo_pago"] is None
+        ):
+            categorias = list(CATEGORIAS_GASTO)
+            categorias.extend(
+                str(movimiento.get("Subcategoria", "")).strip()
+                for movimiento in movimientos
+            )
+            interpretacion_ia = await asyncio.to_thread(
+                interpretar_con_gemini,
+                mensaje_usuario,
+                categorias,
+            )
+            if interpretacion_ia is not None:
+                if datos["subcategoria"] is None:
+                    datos["subcategoria"] = interpretacion_ia["categoria"]
+                if datos["mes"] is None and interpretacion_ia["mes"] is not None:
+                    datos["mes"] = interpretacion_ia["mes"]
+                    datos["meses"] = [interpretacion_ia["mes"]]
+                    datos["anio"] = interpretacion_ia["anio"]
 
 
         print(
