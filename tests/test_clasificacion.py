@@ -45,11 +45,11 @@ class Clasificacion(unittest.TestCase):
             ("Comida a domicilio", "media", "Patrón de descripción"),
         )
 
-    def test_ignora_ingresos_y_resumen_no_expone_filas(self):
+    def test_incluye_ingresos_y_resumen_no_expone_filas(self):
         ingreso = {"Tipo de Movimiento": "Ingreso", "Descripcion": "Nómina", "Subcategoria": "Nomina"}
-        self.assertEqual(sugerir_subcategoria(ingreso), (None, "fuera_de_alcance", "No es un gasto"))
+        self.assertEqual(sugerir_subcategoria(ingreso)[0], "Sueldo")
         vista = crear_vista_previa([gasto("Netflix"), gasto("Sin patrón"), ingreso])
-        self.assertEqual(vista["por_confianza"], {"fuera_de_alcance": 1, "media": 1, "revision": 1})
+        self.assertEqual(vista["por_confianza"], {"alta": 1, "media": 1, "revision": 1})
         self.assertNotIn("Netflix", str(vista))
 
 

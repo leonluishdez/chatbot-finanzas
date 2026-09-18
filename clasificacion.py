@@ -6,10 +6,11 @@ sugerencia y una confianza para que el cambio posterior pueda revisarse.
 
 from collections import Counter
 
+from categorias import CATEGORIAS_GASTO, CATEGORIAS_INGRESO
 from finanzas import normalizar_texto
 
 
-CATEGORIA_SIN_IDENTIFICAR = "Sin identificar"
+CATEGORIA_SIN_IDENTIFICAR = "Por revisar"
 
 
 ALIAS_CATEGORIAS = {
@@ -18,9 +19,9 @@ ALIAS_CATEGORIAS = {
     "uber/didi": "Transporte",
     "transporte": "Transporte",
     "ropa y accesorios": "Compras personales",
-    "restaurantes": "Restaurantes y comida",
-    "comida": "Restaurantes y comida",
-    "supermercado": "Supermercado",
+    "restaurantes": "Restaurantes y cafeterías",
+    "restaurantes y comida": "Restaurantes y cafeterías",
+    "supermercado": "Supermercado y despensa",
     "plan de retiro": "Ahorro y retiro",
     "ppr": "Ahorro y retiro",
     "retiro / ppr": "Ahorro y retiro",
@@ -85,10 +86,30 @@ REGLAS_DESCRIPCION = (
 
 def sugerir_subcategoria(movimiento):
     """Devuelve categoría, confianza y fundamento sin modificar la fila."""
-    if normalizar_texto(movimiento.get("Tipo de Movimiento", "")) != "gasto":
-        return None, "fuera_de_alcance", "No es un gasto"
-
+    tipo = normalizar_texto(movimiento.get("Tipo de Movimiento", ""))
     actual = normalizar_texto(movimiento.get("Subcategoria", ""))
+    if tipo == "ingreso":
+        for categoria in CATEGORIAS_INGRESO:
+            if normalizar_texto(categoria) == actual:
+                return categoria, "alta", "Categoría vigente"
+        ingresos_anteriores = {
+            "nomina": "Sueldo",
+            "bono producto": "Bonos y prestaciones",
+            "aguinaldo": "Bonos y prestaciones",
+            "prima vacacional": "Bonos y prestaciones",
+            "utilidades": "Bonos y prestaciones",
+            "comisiones": "Comisiones laborales",
+            "comisiones pt": "Comisiones laborales",
+            "reembolso": "Reembolsos y devoluciones",
+        }
+        categoria = ingresos_anteriores.get(actual, "Ingresos por revisar")
+        confianza = "alta" if actual in ingresos_anteriores else "revision"
+        return categoria, confianza, "Ingreso anterior normalizado"
+    if tipo != "gasto":
+        return None, "fuera_de_alcance", "Tipo de movimiento desconocido"
+    for categoria in CATEGORIAS_GASTO:
+        if normalizar_texto(categoria) == actual:
+            return categoria, "alta", "Categoría vigente"
     if actual in ALIAS_CATEGORIAS:
         return ALIAS_CATEGORIAS[actual], "alta", "Categoría existente normalizada"
 
