@@ -6,3 +6,6 @@ estados/.DS_Store
 
 # Datos locales de gastos recurrentes
 .datos/
+
+# Archivos temporales de telemetría del OCR local
+*.ses

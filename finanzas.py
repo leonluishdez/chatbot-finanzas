@@ -1166,6 +1166,15 @@ def detectar_analisis_mensual(mensaje):
         "media de gasto",
         "que rubros deberia bajar",
         "que gastos deberia bajar",
+        "gastos fijos",
+        "gastos variables",
+        "gastos ajustables",
+        "gastos hormiga",
+        "en que puedo recortar",
+        "en que puedo ahorrar",
+        "cuanto gasto en uber",
+        "cuanto gaste en uber",
+        "transporte de plataforma",
     )
 
     return any(frase in mensaje_normalizado for frase in frases)

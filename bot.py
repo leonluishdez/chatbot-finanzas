@@ -5,6 +5,7 @@ import fcntl
 import os
 from pathlib import Path
 import traceback
+import tempfile
 from ia import (
     es_candidato_registro_gasto,
     interpretar_mensaje as interpretar_con_gemini,
@@ -70,6 +71,9 @@ from finanzas import (
     interpretar_consulta_estado_cuenta,
     obtener_movimientos_fecha_pago,
 )
+from analisis_decisiones import REGLAS_CATEGORIA, analizar_decisiones, detectar_tipo_analisis
+from clasificacion import sugerir_subcategoria
+from ocr_notificaciones import extraer_texto_imagen, interpretar_alerta
 
 
 # ============================================================
@@ -707,7 +711,156 @@ def crear_resumen_analisis_mensual(
                 f"• {categoria['subcategoria']}: +${categoria['diferencia']:,.2f}. Lo marco como compromiso/fijo; conviene revisarlo, no recortarlo automáticamente."
             )
 
+    decisiones = analizar_decisiones(
+        movimientos,
+        mes=analisis["mes"],
+        anio=analisis["anio"],
+        hoy=hoy,
+    )
+    tipos = decisiones["por_tipo"]
+    lineas.extend([
+        "",
+        "🧭 Lectura para tus metas:",
+        f"• Fijo esencial pagado: ${tipos.get('Fijo esencial', 0):,.2f}",
+        f"• Variable necesario pagado: ${tipos.get('Variable necesario', 0):,.2f}",
+        f"• Ajustable pagado: ${tipos.get('Variable ajustable', 0) + tipos.get('Fijo ajustable', 0):,.2f}",
+        f"• Deuda pagada: ${tipos.get('Deuda', 0):,.2f}",
+        f"• Ahorro y retiro: ${tipos.get('Ahorro y meta', 0):,.2f}",
+        "",
+        f"🐜 Compras de hasta $300 en rubros ajustables: {decisiones['hormiga_cantidad']} movimientos por ${decisiones['hormiga_total']:,.2f}.",
+        f"🍽️ Restaurantes y entregas: ${decisiones['comida_fuera']:,.2f} | Supermercado: ${decisiones['supermercado']:,.2f}.",
+    ])
+    plataformas = decisiones["transporte"].get("plataforma", 0)
+    publico = decisiones["transporte"].get("publico", 0)
+    lineas.append(
+        f"🚕 Uber/Didi: ${plataformas:,.2f} | 🚇 Transporte público: ${publico:,.2f}."
+    )
+    if decisiones["oportunidades"]:
+        lineas.extend(["", "🎯 Oportunidades iniciales:"])
+        for item in decisiones["oportunidades"][:3]:
+            lineas.append(
+                f"• {item['categoria']}: reducir {item['porcentaje']:.0%} liberaría aproximadamente ${item['potencial']:,.2f}."
+            )
+        lineas.append(
+            f"Potencial estimado total: ${decisiones['ahorro_sugerido']:,.2f} al mes para dirigir primero a deuda."
+        )
+
     return "\n".join(lineas)
+
+
+def crear_respuesta_analisis_especifico(
+    mensaje,
+    movimientos,
+    mes=None,
+    anio=None,
+    cuenta=None,
+    hoy=None,
+):
+    """Responde solo a lo preguntado usando cálculos locales."""
+    decisiones = analizar_decisiones(
+        movimientos,
+        mes=mes,
+        anio=anio,
+        hoy=hoy,
+    )
+    tipo = detectar_tipo_analisis(mensaje)
+    periodo = f"{NOMBRES_MESES[decisiones['mes']]} {decisiones['anio']}"
+
+    if tipo == "transporte":
+        importes = decisiones["transporte"]
+        cantidades = decisiones["transporte_cantidad"]
+        plataforma = importes.get("plataforma", 0)
+        publico = importes.get("publico", 0)
+        otro = importes.get("otro", 0)
+        return "\n".join([
+            f"🚕 Transporte en {periodo}",
+            f"Uber/Didi: ${plataforma:,.2f} en {cantidades.get('plataforma', 0)} movimientos.",
+            f"Transporte público: ${publico:,.2f} en {cantidades.get('publico', 0)} recargas.",
+            f"Otro transporte: ${otro:,.2f}.",
+            "",
+            f"Reducir las plataformas 20% liberaría aproximadamente ${plataforma * 0.20:,.2f} este mes.",
+        ])
+
+    if tipo == "hormiga":
+        detalle = sorted(
+            decisiones["hormiga_por_categoria"].items(),
+            key=lambda item: (-item[1]["total"], item[0]),
+        )
+        lineas = [
+            f"🐜 Gastos pequeños ajustables en {periodo}",
+            f"Encontré {decisiones['hormiga_cantidad']} movimientos de hasta $300 que suman ${decisiones['hormiga_total']:,.2f}.",
+            "",
+            "Por categoría:",
+        ]
+        if detalle:
+            for categoria, valores in detalle[:5]:
+                lineas.append(
+                    f"• {categoria}: {valores['cantidad']} movimientos por ${valores['total']:,.2f}."
+                )
+        else:
+            lineas.append("No encontré movimientos que cumplan esta definición.")
+        lineas.extend([
+            "",
+            "Los marco por frecuencia e importe; no significa que todos sean innecesarios.",
+        ])
+        return "\n".join(lineas)
+
+    if tipo == "estructura":
+        agrupadas = {
+            clase: list(detalles.items())
+            for clase, detalles in decisiones["por_tipo_detalle"].items()
+        }
+        orden = (
+            ("Fijo esencial", "🏠 Fijos esenciales"),
+            ("Fijo ajustable", "📺 Fijos ajustables"),
+            ("Variable necesario", "🛒 Variables necesarios"),
+            ("Variable ajustable", "🎯 Variables ajustables"),
+        )
+        lineas = [f"📊 Gastos fijos y variables pagados en {periodo}"]
+        for clase, titulo in orden:
+            elementos = sorted(agrupadas.get(clase, []), key=lambda item: -item[1])
+            total = sum(importe for _, importe in elementos)
+            lineas.extend(["", f"{titulo}: ${total:,.2f}"])
+            for categoria, importe in elementos[:4]:
+                lineas.append(f"• {categoria}: ${importe:,.2f}")
+        pendientes = sorted(
+            decisiones["fijos_pendientes"].items(), key=lambda item: -item[1]
+        )
+        if pendientes:
+            lineas.extend(["", "⏳ Fijos esenciales pendientes este mes:"])
+            for etiqueta, importe in pendientes:
+                lineas.append(f"• {etiqueta}: ${importe:,.2f}")
+        lineas.extend([
+            "",
+            f"Deuda pagada: ${decisiones['por_tipo'].get('Deuda', 0):,.2f}.",
+            f"Aportado a ahorro y retiro: ${decisiones['ahorro_retiro']:,.2f}.",
+        ])
+        return "\n".join(lineas)
+
+    if tipo == "recortes":
+        lineas = [
+            f"🎯 Oportunidades de ajuste en {periodo}",
+            "Estas cifras son escenarios, no recortes obligatorios:",
+            "",
+        ]
+        for item in decisiones["oportunidades"][:5]:
+            lineas.append(
+                f"• {item['categoria']}: gastaste ${item['total']:,.2f}; "
+                f"bajar {item['porcentaje']:.0%} liberaría ${item['potencial']:,.2f}."
+            )
+        lineas.extend([
+            "",
+            f"Potencial estimado: ${decisiones['ahorro_sugerido']:,.2f} al mes.",
+            f"En un año serían aproximadamente ${decisiones['ahorro_sugerido'] * 12:,.2f} para acelerar deuda y después ahorrar para coche y casa.",
+        ])
+        return "\n".join(lineas)
+
+    return crear_resumen_analisis_mensual(
+        movimientos,
+        mes=mes,
+        anio=anio,
+        hoy=hoy,
+    )
 
 
 # ============================================================
@@ -1814,6 +1967,84 @@ async def manejar_clasificacion(
 # RESPONDER MENSAJES
 # ============================================================
 
+async def recibir_captura_gasto(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Convierte localmente una captura bancaria en una vista previa."""
+    mensaje = update.effective_message
+    if mensaje is None or not mensaje.photo:
+        return
+
+    await mensaje.reply_text("🔎 Estoy leyendo la captura de forma local…")
+    ruta = None
+    try:
+        foto = await context.bot.get_file(mensaje.photo[-1].file_id)
+        with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as temporal:
+            ruta = temporal.name
+        await foto.download_to_drive(custom_path=ruta)
+        texto = await asyncio.to_thread(extraer_texto_imagen, ruta)
+        alerta = interpretar_alerta(texto)
+    except Exception as exc:
+        print(f"Error leyendo captura: {exc}", flush=True)
+        await mensaje.reply_text(
+            "No pude leer esa captura. Intenta recortarla para que se vea claramente "
+            "la notificación bancaria."
+        )
+        return
+    finally:
+        if ruta:
+            Path(ruta).unlink(missing_ok=True)
+
+    monto = alerta["monto"]
+    concepto = alerta["concepto"]
+    cuenta = alerta["cuenta"]
+    if monto is None:
+        await mensaje.reply_text(
+            "No encontré un monto en la captura. Recórtala para incluir la alerta "
+            "completa con el importe y el comercio."
+        )
+        return
+    if not concepto:
+        await mensaje.reply_text(
+            f"Detecté un cargo de ${monto:,.2f}, pero no pude identificar el comercio. "
+            f"Escríbelo como: ‘Gasté {monto:,.2f} en nombre del comercio’."
+        )
+        return
+
+    categoria, _, _ = sugerir_subcategoria({
+        "Tipo de Movimiento": "Gasto",
+        "Concepto": concepto,
+        "Descripcion": "",
+        "Subcategoria": "",
+    })
+    if categoria not in CATEGORIAS_GASTO:
+        categoria = "Por revisar"
+
+    pendiente = {
+        "tipo_movimiento": "Gasto",
+        "monto": monto,
+        "cuenta": cuenta,
+        "concepto": concepto,
+        "subcategoria": categoria,
+        "categoria": categoria,
+        "categoria_sugerida_ia": None,
+        "plazos": 1,
+        "fecha_compra": datetime.now(),
+        "origen": "captura_bancaria",
+    }
+    context.user_data["gasto_pendiente"] = pendiente
+
+    if cuenta is None:
+        await mensaje.reply_text(
+            f"Detecté un cargo de ${monto:,.2f} en {concepto}.\n\n"
+            "Selecciona la tarjeta de la notificación:",
+            reply_markup=crear_teclado_cuentas(),
+        )
+        return
+    await mensaje.reply_text(
+        crear_resumen_confirmacion(pendiente),
+        reply_markup=crear_teclado_confirmacion(),
+    )
+
+
 async def responder_mensaje(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
@@ -2432,7 +2663,8 @@ async def responder_mensaje(
 
         if datos.get("analisis_mensual"):
             await update.message.reply_text(
-                crear_resumen_analisis_mensual(
+                crear_respuesta_analisis_especifico(
+                    mensaje_usuario,
                     movimientos,
                     mes=mes,
                     anio=anio,
@@ -3699,6 +3931,13 @@ def main():
         )
     )
 
+
+    app.add_handler(
+        MessageHandler(
+            filters.PHOTO,
+            recibir_captura_gasto
+        )
+    )
 
     app.add_handler(
         MessageHandler(

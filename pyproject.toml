@@ -7,9 +7,11 @@ requires-python = ">=3.14"
 dependencies = [
     "google-genai>=1.0,<2",
     "gspread>=6.2.1",
+    "onnxruntime>=1.22,<2",
     "pypdf>=6.16.2",
     "python-dotenv>=1.2.3",
     "python-telegram-bot[job-queue]>=22.8",
+    "rapidocr>=3,<4",
 ]
 
 [project.scripts]
