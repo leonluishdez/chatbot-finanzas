@@ -1357,13 +1357,14 @@ async def continuar_movimiento_pendiente(
         return True
 
 
-    datos[
-        "concepto"
-    ] = (
-        mensaje_usuario
-        .strip()
-        .capitalize()
-    )
+    concepto = mensaje_usuario.strip()
+    if not concepto:
+        await update.message.reply_text("Escribe el nombre del comercio o la descripción del movimiento.")
+        return True
+
+    # Conserva el nombre introducido por el usuario, incluidos signos y
+    # mayúsculas de marcas como "Dlo*tda uber rides".
+    datos["concepto"] = concepto[:80]
 
 
     context.user_data[
@@ -1471,6 +1472,28 @@ async def continuar_movimiento_pendiente(
 
 
     return True
+
+
+def construir_pendiente_registro(datos, *, origen=None):
+    """Normaliza el registro temporal compartido por texto y captura."""
+    tipo_movimiento = datos.get("tipo_movimiento", "Gasto")
+    concepto = str(datos.get("concepto") or "").strip()[:80]
+    subcategoria = datos.get("subcategoria")
+    pendiente = {
+        "tipo_movimiento": tipo_movimiento,
+        "monto": datos.get("monto"),
+        "cuenta": datos.get("cuenta"),
+        "concepto": concepto,
+        "subcategoria": subcategoria,
+        "categoria_sugerida_ia": datos.get("categoria_sugerida_ia"),
+        "plazos": datos.get("plazos", 1),
+        "fecha_compra": datos.get("fecha_compra") or datetime.now(),
+    }
+    if origen:
+        pendiente["origen"] = origen
+    if subcategoria is not None:
+        pendiente["categoria"] = subcategoria
+    return pendiente
 
 def crear_detalle_conciliacion(
     estado,
@@ -2002,35 +2025,37 @@ async def recibir_captura_gasto(update: Update, context: ContextTypes.DEFAULT_TY
             "completa con el importe y el comercio."
         )
         return
-    if not concepto:
-        await mensaje.reply_text(
-            f"Detecté un cargo de ${monto:,.2f}, pero no pude identificar el comercio. "
-            f"Escríbelo como: ‘Gasté {monto:,.2f} en nombre del comercio’."
-        )
-        return
+    categoria = None
+    if concepto:
+        categoria, _, _ = sugerir_subcategoria({
+            "Tipo de Movimiento": "Gasto",
+            "Concepto": concepto,
+            "Descripcion": "",
+            "Subcategoria": "",
+        })
+        if categoria not in CATEGORIAS_GASTO:
+            categoria = "Por revisar"
 
-    categoria, _, _ = sugerir_subcategoria({
-        "Tipo de Movimiento": "Gasto",
-        "Concepto": concepto,
-        "Descripcion": "",
-        "Subcategoria": "",
-    })
-    if categoria not in CATEGORIAS_GASTO:
-        categoria = "Por revisar"
-
-    pendiente = {
+    pendiente = construir_pendiente_registro({
         "tipo_movimiento": "Gasto",
         "monto": monto,
         "cuenta": cuenta,
         "concepto": concepto,
         "subcategoria": categoria,
-        "categoria": categoria,
         "categoria_sugerida_ia": None,
         "plazos": 1,
-        "fecha_compra": datetime.now(),
-        "origen": "captura_bancaria",
-    }
+    }, origen="captura_bancaria")
     context.user_data["gasto_pendiente"] = pendiente
+
+    if not concepto:
+        context.user_data["esperando_descripcion"] = True
+        await mensaje.reply_text(
+            f"🔎 Detecté un cargo de ${monto:,.2f}.\n"
+            "No pude identificar el comercio. ¿Cuál fue?"
+        )
+        return
+
+    context.user_data.pop("esperando_descripcion", None)
 
     if cuenta is None:
         await mensaje.reply_text(
@@ -2404,34 +2429,19 @@ async def responder_mensaje(
             # GUARDAR TEMPORALMENTE
             # =================================================
 
-            context.user_data[
-                "gasto_pendiente"
-            ] = {
-
-                "tipo_movimiento":
-                tipo_movimiento,
-
-                "monto":
-                monto,
-
-                "cuenta":
-                cuenta,
-
-                "concepto":
-                concepto,
-
-                "subcategoria":
-                subcategoria,
-
-                "categoria_sugerida_ia":
-                datos.get("categoria_sugerida_ia"),
-
-                "plazos":
-                plazos,
-
-                "fecha_compra":
-                fecha_compra,
-            }
+            context.user_data["gasto_pendiente"] = construir_pendiente_registro(
+                {
+                    "tipo_movimiento": tipo_movimiento,
+                    "monto": monto,
+                    "cuenta": cuenta,
+                    "concepto": concepto,
+                    "subcategoria": subcategoria,
+                    "categoria_sugerida_ia": datos.get("categoria_sugerida_ia"),
+                    "plazos": plazos,
+                    "fecha_compra": fecha_compra,
+                },
+                origen="texto",
+            )
 
 
             # =================================================

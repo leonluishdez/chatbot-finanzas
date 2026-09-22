@@ -52,14 +52,34 @@ def _extraer_concepto(texto):
         re.compile(r"\b(?:en|comercio|establecimiento)\s*[:\-]?\s*(.+)$", re.I),
         re.compile(r"(?:concepto|descripcion|descripción)\s*[:\-]?\s*(.+)$", re.I),
     )
-    descartes = ("saldo", "tarjeta", "terminacion", "terminación", "fecha", "hora", "monto")
+    descartes = (
+        "saldo", "tarjeta", "terminacion", "terminación", "fecha", "hora",
+        "monto", "importe", "disponible", "notificacion", "notificación",
+        "compra realizada", "autorizada", "autorizado", "banco",
+        "compra", "cargo", "consumo", "pago", "operacion", "operación",
+    )
+    candidatos = []
     for linea in lineas:
         for patron in patrones:
             coincidencia = patron.search(linea)
             if coincidencia:
-                valor = coincidencia.group(1).strip(" .-")
-                if valor and not any(x in normalizar_texto(valor) for x in descartes):
-                    return valor[:80]
+                candidatos.append((3, coincidencia.group(1)))
+                break
+
+        normalizado = normalizar_texto(linea)
+        if (
+            len(linea) >= 3
+            and len(linea) <= 80
+            and not any(x in normalizado for x in descartes)
+            and not re.search(r"(?:\$|\b\d[\d,.]*\b|https?://|[*#]{2,})", linea)
+            and not re.search(r"\b(?:visa|mastercard|amex|credito|cr[eé]dito|d[eé]bito)\b", normalizado)
+        ):
+            candidatos.append((1, linea))
+
+    for _, valor in sorted(candidatos, key=lambda item: -item[0]):
+        valor = re.sub(r"\s+", " ", valor).strip(" .:-–—")
+        if valor and not any(x in normalizar_texto(valor) for x in descartes):
+            return valor[:80]
     return ""
 
 
