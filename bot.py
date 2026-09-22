@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 import traceback
 import tempfile
+import time
+from collections import defaultdict, deque
 from ia import (
     es_candidato_registro_gasto,
     interpretar_mensaje as interpretar_con_gemini,
@@ -85,6 +87,41 @@ load_dotenv()
 TOKEN = os.getenv(
     "TELEGRAM_TOKEN"
 )
+
+
+def _ids_configurados(nombre):
+    valores = os.getenv(nombre, "")
+    try:
+        return frozenset(int(valor.strip()) for valor in valores.split(",") if valor.strip())
+    except ValueError as exc:
+        raise RuntimeError(f"{nombre} debe contener IDs numéricos separados por comas.") from exc
+
+
+ALLOWED_USER_IDS = _ids_configurados("ALLOWED_USER_IDS")
+MAX_TEXT_LENGTH = int(os.getenv("MAX_TEXT_LENGTH", "4000"))
+MAX_PHOTO_BYTES = int(os.getenv("MAX_PHOTO_BYTES", str(8 * 1024 * 1024)))
+_intentos_recientes = defaultdict(deque)
+
+
+def usuario_autorizado(update):
+    """Acepta únicamente usuarios configurados en chats privados."""
+    usuario = update.effective_user
+    chat = update.effective_chat
+    return bool(usuario and chat and chat.type == "private" and usuario.id in ALLOWED_USER_IDS)
+
+
+def solicitud_permitida(update):
+    if not usuario_autorizado(update):
+        return False
+    ahora = time.monotonic()
+    cola = _intentos_recientes[update.effective_user.id]
+    while cola and ahora - cola[0] > 60:
+        cola.popleft()
+    if len(cola) >= 30:
+        return False
+    cola.append(ahora)
+    return True
+
 
 _archivo_instancia = None
 
@@ -1816,6 +1853,9 @@ async def iniciar_clasificacion(
     context: ContextTypes.DEFAULT_TYPE
 ):
 
+    if not solicitud_permitida(update):
+        return
+
     if update.message is None:
 
         return
@@ -1867,6 +1907,9 @@ async def manejar_clasificacion(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ):
+
+    if not solicitud_permitida(update):
+        return
 
     query = update.callback_query
 
@@ -1992,8 +2035,15 @@ async def manejar_clasificacion(
 
 async def recibir_captura_gasto(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Convierte localmente una captura bancaria en una vista previa."""
+    if not solicitud_permitida(update):
+        return
     mensaje = update.effective_message
     if mensaje is None or not mensaje.photo:
+        return
+
+    tamano = getattr(mensaje.photo[-1], "file_size", None)
+    if tamano is not None and tamano > MAX_PHOTO_BYTES:
+        await mensaje.reply_text("La imagen supera el tamaño permitido.")
         return
 
     await mensaje.reply_text("🔎 Estoy leyendo la captura de forma local…")
@@ -2079,10 +2129,17 @@ async def responder_mensaje(
 
         return
 
+    if not solicitud_permitida(update):
+        return
+
 
     mensaje_usuario = (
         update.message.text.strip()
     )
+
+    if len(mensaje_usuario) > MAX_TEXT_LENGTH:
+        await update.message.reply_text("El mensaje es demasiado largo.")
+        return
 
 
     if await manejar_texto_recurrente(update, context, CUENTAS_GASTO, CATEGORIAS_GASTO):
@@ -3064,6 +3121,9 @@ async def manejar_cuenta(
     context: ContextTypes.DEFAULT_TYPE
 ):
 
+    if not solicitud_permitida(update):
+        return
+
     query = update.callback_query
 
 
@@ -3198,6 +3258,9 @@ async def manejar_categoria(
     context: ContextTypes.DEFAULT_TYPE
 ):
 
+    if not solicitud_permitida(update):
+        return
+
     query = update.callback_query
 
 
@@ -3264,6 +3327,8 @@ async def manejar_categoria(
 
 
 async def cambiar_categoria(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not solicitud_permitida(update):
+        return
     query = update.callback_query
     if query is None:
         return
@@ -3288,6 +3353,9 @@ async def confirmar_gasto(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE
 ):
+
+    if not solicitud_permitida(update):
+        return
 
     query = update.callback_query
 
@@ -3803,6 +3871,9 @@ async def cancelar_gasto(
     context: ContextTypes.DEFAULT_TYPE
 ):
 
+    if not solicitud_permitida(update):
+        return
+
     query = update.callback_query
 
 
@@ -3853,6 +3924,8 @@ async def manejar_error(
 # ============================================================
 
 async def manejar_recurrentes(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not solicitud_permitida(update):
+        return
     if update.message is None:
         return
     try:
@@ -3866,10 +3939,14 @@ async def manejar_recurrentes(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def botones_recurrentes(update, context):
+    if not solicitud_permitida(update):
+        return
     await manejar_boton_recurrente(update, context, CUENTAS_GASTO, CATEGORIAS_GASTO)
 
 
 async def manejar_recordatorios(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not solicitud_permitida(update):
+        return
     if update.message is None or update.effective_chat is None:
         return
 
@@ -3917,6 +3994,11 @@ def main():
                 "No se encontró "
                 "TELEGRAM_TOKEN."
             )
+        )
+
+    if not ALLOWED_USER_IDS:
+        raise RuntimeError(
+            "Configura ALLOWED_USER_IDS con tu ID numérico de Telegram antes de iniciar el bot."
         )
 
 

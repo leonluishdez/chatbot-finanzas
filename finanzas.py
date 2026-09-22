@@ -1,5 +1,6 @@
 import calendar
 import re
+import math
 import unicodedata
 
 from datetime import datetime
@@ -741,9 +742,10 @@ def detectar_monto(
 
         return None
 
-    return float(
-        match.group()
-    )
+    monto = float(match.group())
+    if not math.isfinite(monto) or monto <= 0 or monto > 999_999_999:
+        return None
+    return monto
 
 
 # ============================================================

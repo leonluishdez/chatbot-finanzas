@@ -1,8 +1,13 @@
 .env
 service_account.json
+.env.*
+!.env.example
 .venv/
 __pycache__/
 estados/.DS_Store
+estados/*.pdf
+*.log
+*.zip
 
 # Datos locales de gastos recurrentes
 .datos/
